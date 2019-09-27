@@ -2,46 +2,44 @@ package nosql.batch.update;
 
 import nosql.batch.update.lock.Lock;
 import nosql.batch.update.lock.LockOperations;
-import nosql.batch.update.wal.TransactionId;
 import nosql.batch.update.wal.WriteAheadLogManager;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
-public class BatchOperations<L, U> {
+public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
 
-    private final WriteAheadLogManager<L, U> writeAheadLogManager;
-    private final LockOperations<L> lockOperations;
-    private final UpdateOperations<U> updateOperations;
+    private final WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> writeAheadLogManager;
+    private final LockOperations<LOCKS, L, BATCH_ID> lockOperations;
+    private final UpdateOperations<UPDATES> updateOperations;
 
-    public BatchOperations(WriteAheadLogManager<L, U> writeAheadLogManager,
-                           LockOperations<L> lockOperations,
-                           UpdateOperations<U> updateOperations) {
+    public BatchOperations(WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> writeAheadLogManager,
+                           LockOperations<LOCKS, L, BATCH_ID> lockOperations,
+                           UpdateOperations<UPDATES> updateOperations) {
         this.writeAheadLogManager = writeAheadLogManager;
         this.lockOperations = lockOperations;
         this.updateOperations = updateOperations;
     }
 
-    public void processAndDeleteTransaction(TransactionId transactionId, BatchUpdate<L, U> batchUpdate, boolean checkTransactionId) {
-        Set<Lock> locked = lockOperations.acquire(transactionId, batchUpdate.locks(), checkTransactionId,
-                locksToRelease -> releaseLocksAndDeleteWalTransaction(locksToRelease, transactionId));
+    public void processAndDeleteTransaction(BATCH_ID batchId, BatchUpdate<LOCKS, UPDATES> batchUpdate, boolean checkTransactionId) {
+        List<L> locked = lockOperations.acquire(batchId, batchUpdate.locks(), checkTransactionId,
+                locksToRelease -> releaseLocksAndDeleteWalTransaction(locksToRelease, batchId));
 
         updateOperations.updateMany(batchUpdate.updates());
-        releaseLocksAndDeleteWalTransaction(locked, transactionId);
+        releaseLocksAndDeleteWalTransaction(locked, batchId);
     }
 
-    private void releaseLocksAndDeleteWalTransaction(Collection<Lock> locks, TransactionId transactionId) {
+    private void releaseLocksAndDeleteWalTransaction(Collection<L> locks, BATCH_ID batchId) {
         lockOperations.release(locks);
-        writeAheadLogManager.deleteTransaction(transactionId);
+        writeAheadLogManager.deleteBatch(batchId);
     }
 
-    public void releaseLocksAndDeleteWalTransactionOnError(L locks, TransactionId transactionId) {
-        List<Lock> transactionLockKeys = lockOperations.getLockedByTransaction(locks, transactionId);
-        releaseLocksAndDeleteWalTransaction(transactionLockKeys, transactionId);
+    public void releaseLocksAndDeleteWalTransactionOnError(LOCKS locks, BATCH_ID batchId) {
+        List<L> transactionLockKeys = lockOperations.getLockedByBatchUpdate(locks, batchId);
+        releaseLocksAndDeleteWalTransaction(transactionLockKeys, batchId);
     }
 
-    public WriteAheadLogManager<L, U> getWriteAheadLogManager() {
+    public WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> getWriteAheadLogManager() {
         return writeAheadLogManager;
     }
 

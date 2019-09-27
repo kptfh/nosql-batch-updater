@@ -1,26 +1,46 @@
 package nosql.batch.update;
 
-import nosql.batch.update.wal.TransactionId;
+import nosql.batch.update.lock.Lock;
 import nosql.batch.update.wal.WriteAheadLogManager;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+/**
+ * Used to run batch updates on NoSql storage. Initially it was developed for Aerospike but may be implemented for any.
+ * Updates should be idempotent so WriteAheadLogCompleter can safely complete interrupted batch
+ * There is 2 approaches in batch updates PRE_LOCK and POST_LOCK
+ *
+ * PRE_LOCK - used if you know in advance all records (keys) that should be updated
+ * It takes the following steps to complete batch update
+ * 1) Lock keys
+ * 2) Apply updates
+ * 3) Unlock keys
+ *
+ * POST_LOCK - used if you don't know in advance all records (keys) that should be updated.
+ * It takes the following steps to complete batch update
+ * 1) Prepare updates
+ * 2) Lock keys
+ * 3) Check expected values (to guarantee that no concurrent changes while running updates and acquiring locks)
+ * 4) Apply updates
+ * 5) Unlock keys
+ *
+ * @param <LOCKS>
+ * @param <UPDATES>
+ * @param <L>
+ * @param <BATCH_ID>
+ */
+public class BatchUpdater<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
 
-public class BatchUpdater<L, U> {
+    private final WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> writeAheadLogManager;
+    private BatchOperations<LOCKS, UPDATES, L, BATCH_ID> batchOperations;
 
-    private final WriteAheadLogManager<L, U> writeAheadLogManager;
-    private BatchOperations<L, U> batchOperations;
-
-    public BatchUpdater(BatchOperations<L, U> batchOperations) {
+    public BatchUpdater(BatchOperations<LOCKS, UPDATES, L, BATCH_ID> batchOperations) {
         this.batchOperations = batchOperations;
         this.writeAheadLogManager = batchOperations.getWriteAheadLogManager();
     }
 
-    public void update(BatchUpdate<L, U> batchUpdate) {
-        TransactionId transactionId = writeAheadLogManager.writeTransaction(batchUpdate);
+    public void update(BatchUpdate<LOCKS, UPDATES> batchUpdate) {
+        BATCH_ID batchId = writeAheadLogManager.writeBatch(batchUpdate);
 
-        batchOperations.processAndDeleteTransaction(transactionId, batchUpdate, false);
+        batchOperations.processAndDeleteTransaction(batchId, batchUpdate, false);
     }
 
 }

@@ -1,6 +1,6 @@
 package nosql.batch.update;
 
-public interface UpdateOperations<U> {
+public interface UpdateOperations<UPDATES> {
 
-    void updateMany(U batchOfUpdates);
+    void updateMany(UPDATES batchOfUpdates);
 }

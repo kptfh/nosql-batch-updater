@@ -23,9 +23,9 @@
         <version>0.0.1</version>
     </parent>
 
-    <artifactId>batch-updater</artifactId>
+    <artifactId>aerospike-batch-updater</artifactId>
     <packaging>jar</packaging>
-    <name>Batch updates on NoSql DBs</name>
+    <name>Batch updates on Aerospike</name>
 
     <properties>
         <main.basedir>${project.basedir}/..</main.basedir>
@@ -34,11 +34,35 @@
     <dependencies>
 
         <dependency>
+            <groupId>com.aerospike</groupId>
+            <artifactId>aerospike-client</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.kptfh.nosql</groupId>
+            <artifactId>batch-updater</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
         <!-- Tests -->
+        <dependency>
+            <groupId>io.kptfh.nosql</groupId>
+            <artifactId>batch-updater</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.kptfh.nosql</groupId>
+            <artifactId>aerospike-container</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>junit</groupId>
@@ -59,22 +83,5 @@
         </dependency>
 
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>test-jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
 
 </project>
