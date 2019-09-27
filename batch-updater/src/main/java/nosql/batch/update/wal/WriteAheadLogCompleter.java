@@ -1,7 +1,8 @@
 package nosql.batch.update.wal;
 
 import nosql.batch.update.BatchOperations;
-import nosql.batch.update.lock.FailedToAcquireAllLocksException;
+import nosql.batch.update.lock.Lock;
+import nosql.batch.update.lock.TemporaryLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,15 +17,14 @@ import static nosql.batch.update.util.AsyncUtil.shutdownAndAwaitTermination;
 /**
  * Completes hanged transactions
  */
-public class WriteAheadLogCompleter<L, U> {
+public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
 
     private static Logger logger = LoggerFactory.getLogger(WriteAheadLogCompleter.class);
 
-    private static final long WAIT_TIMEOUT_IN_SECONDS = 10;
+    private final WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> writeAheadLogManager;
+    private final Duration staleBatchesThreshold;
+    private final BatchOperations<LOCKS, UPDATES, L, BATCH_ID> batchOperations;
 
-    private final WriteAheadLogManager<L, U> writeAheadLogManager;
-    private final Duration delayBeforeCompletion;
-    private final BatchOperations<L, U> batchOperations;
     private final ExclusiveLocker exclusiveLocker;
     private final ScheduledExecutorService scheduledExecutorService;
 
@@ -32,16 +32,16 @@ public class WriteAheadLogCompleter<L, U> {
 
     /**
      * @param batchOperations
-     * @param delayBeforeCompletion set period to be slightly longer then expiration
+     * @param staleBatchesThreshold
      * @param exclusiveLocker
      * @param scheduledExecutorService
      */
-    public WriteAheadLogCompleter(BatchOperations<L, U> batchOperations, Duration delayBeforeCompletion,
+    public WriteAheadLogCompleter(BatchOperations<LOCKS, UPDATES, L, BATCH_ID> batchOperations,
+                                  Duration staleBatchesThreshold,
                                   ExclusiveLocker exclusiveLocker, ScheduledExecutorService scheduledExecutorService){
         this.writeAheadLogManager = batchOperations.getWriteAheadLogManager();
         this.batchOperations = batchOperations;
-
-        this.delayBeforeCompletion = delayBeforeCompletion;
+        this.staleBatchesThreshold = staleBatchesThreshold;
         this.exclusiveLocker = exclusiveLocker;
         this.scheduledExecutorService = scheduledExecutorService;
     }
@@ -49,18 +49,21 @@ public class WriteAheadLogCompleter<L, U> {
     public void start(){
         scheduledExecutorService.scheduleAtFixedRate(
                 this::completeHangedTransactions,
-                0, delayBeforeCompletion.toMillis(), TimeUnit.MILLISECONDS);
+                //set period to be slightly longer then expiration
+                0, staleBatchesThreshold.toMillis() + 100, TimeUnit.MILLISECONDS);
     }
 
     public void shutdown(){
-        shutdownAndAwaitTermination(scheduledExecutorService, WAIT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
+        shutdownAndAwaitTermination(scheduledExecutorService);
+        exclusiveLocker.shutdown();
     }
 
     /**
      * You should call it when the data center had been switched into the passive mode
      */
     public void suspend(){
-        this.suspended.set(true);
+        suspended.set(true);
+        exclusiveLocker.release();
     }
 
     public boolean isSuspended(){
@@ -82,10 +85,11 @@ public class WriteAheadLogCompleter<L, U> {
         }
 
         try {
-            if(exclusiveLocker.acquireExclusiveLock()){
-                List<WalTransaction<L, U>> staleTransactions = writeAheadLogManager.getStaleTransactions();
-                logger.info("Got {} stale transactions", staleTransactions.size());
-                for(WalTransaction<L, U> transaction : staleTransactions){
+            if(exclusiveLocker.acquire()){
+                List<WalRecord<LOCKS, UPDATES, BATCH_ID>> staleBatches
+                        = writeAheadLogManager.getStaleBatches(staleBatchesThreshold);
+                logger.info("Got {} stale transactions", staleBatches.size());
+                for(WalRecord<LOCKS, UPDATES, BATCH_ID> batch : staleBatches){
                     if(suspended.get()){
                         logger.info("WAL execution was suspended");
                         break;
@@ -95,27 +99,28 @@ public class WriteAheadLogCompleter<L, U> {
                         break;
                     }
 
-                    if(exclusiveLocker.renewExclusiveLock()) {
+                    if(exclusiveLocker.acquire()) {
                         logger.info("Trying to complete transaction txId=[{}], timestamp=[{}]",
-                                transaction.transactionId, transaction.timestamp);
+                                batch.batchId, batch.timestamp);
+                        LOCKS locks = batch.batchUpdate.locks();
                         try {
                             batchOperations.processAndDeleteTransaction(
-                                    transaction.transactionId, transaction.locks, transaction.updates, true);
-                            logger.info("Successfully complete transaction txId=[{}]", transaction.transactionId);
+                                    batch.batchId, batch.batchUpdate, true);
+                            logger.info("Successfully complete transaction txId=[{}]", batch.batchId);
                         }
                         //this is expected behaviour that may have place in case of hanged transaction was not completed:
                         //not able to acquire all locks (didn't match expected value
                         // (may have place if initial transaction was interrupted on release stage and released values were modified))
-                        catch (FailedToAcquireAllLocksException be) {
-                            logger.info("Failed to complete transaction txId=[{}] as it's already completed", transaction.transactionId, be);
+                        catch (TemporaryLockingException be) {
+                            logger.info("Failed to complete transaction txId=[{}] as it's already completed", batch.batchId, be);
                             batchOperations.releaseLocksAndDeleteWalTransactionOnError(
-                                    transaction.locks, transaction.transactionId);
-                            logger.info("released locks for transaction txId=[{}]", transaction.transactionId, be);
+                                    locks, batch.batchId);
+                            logger.info("released locks for transaction txId=[{}]", batch.batchId, be);
                         }
                         //even in case of error need to move to the next one
                         catch (Exception e) {
                             logger.error("!!! Failed to complete transaction txId=[{}], need to be investigated",
-                                    transaction.transactionId, e);
+                                    batch.batchId, e);
                         }
                     }
                 }
