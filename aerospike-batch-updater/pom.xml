@@ -40,6 +40,12 @@
         </dependency>
 
         <dependency>
+            <groupId>com.aerospike</groupId>
+            <artifactId>aerospike-reactor-client</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
             <groupId>io.kptfh.nosql</groupId>
             <artifactId>batch-updater</artifactId>
             <version>${project.version}</version>
@@ -81,6 +87,13 @@
             <artifactId>log4j-slf4j-impl</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
 
     </dependencies>
 

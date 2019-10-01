@@ -77,7 +77,7 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         this.suspended.set(false);
     }
 
-    private void completeHangedTransactions() {
+    public void completeHangedTransactions() {
 
         if(suspended.get()){
             logger.info("WAL execution was suspended");

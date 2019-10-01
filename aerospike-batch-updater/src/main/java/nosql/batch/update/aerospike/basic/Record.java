@@ -1,4 +1,4 @@
-package nosql.batch.update.aerospike.simple;
+package nosql.batch.update.aerospike.basic;
 
 import com.aerospike.client.Bin;
 import com.aerospike.client.Key;

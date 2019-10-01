@@ -5,9 +5,21 @@ import com.aerospike.AerospikeProperties;
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Info;
+import com.aerospike.client.Value;
+import com.aerospike.client.async.EventLoops;
+import com.aerospike.client.policy.ClientPolicy;
+import nosql.batch.update.BatchOperations;
+import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
 import org.testcontainers.containers.GenericContainer;
 
+import java.time.Clock;
+import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
+
+import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicOperations;
 
 public class AerospikeTestUtils {
 
@@ -17,7 +29,19 @@ public class AerospikeTestUtils {
         return AerospikeContainerUtils.startAerospikeContainer(AEROSPIKE_PROPERTIES);
     }
 
-    static void deleteAllRecords(GenericContainer container) throws InterruptedException {
+    public static AerospikeClient getAerospikeClient(GenericContainer aerospike) {
+        return new AerospikeClient(aerospike.getContainerIpAddress(),
+                aerospike.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
+    }
+
+    public static AerospikeClient getAerospikeClient(GenericContainer aerospike, EventLoops eventLoops) {
+        ClientPolicy clientPolicy = new ClientPolicy();
+        clientPolicy.eventLoops = eventLoops;
+        return new AerospikeClient(clientPolicy, aerospike.getContainerIpAddress(),
+                aerospike.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
+    }
+
+    public static void deleteAllRecords(GenericContainer container) throws InterruptedException {
         try(AerospikeClient client = new AerospikeClient(container.getContainerIpAddress(),
                 container.getMappedPort(AEROSPIKE_PROPERTIES.getPort()))) {
             while(!isEmptyNamespace(client, AEROSPIKE_PROPERTIES.getNamespace())){
