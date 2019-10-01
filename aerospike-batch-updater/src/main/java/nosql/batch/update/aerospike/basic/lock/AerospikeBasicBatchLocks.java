@@ -1,17 +1,17 @@
-package nosql.batch.update.aerospike.simple.lock;
+package nosql.batch.update.aerospike.basic.lock;
 
 import com.aerospike.client.Key;
 import nosql.batch.update.aerospike.lock.AerospikeBatchLocks;
-import nosql.batch.update.aerospike.simple.Record;
+import nosql.batch.update.aerospike.basic.Record;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class AerospikeSimpleBatchLocks implements AerospikeBatchLocks<List<Record>> {
+public class AerospikeBasicBatchLocks implements AerospikeBatchLocks<List<Record>> {
 
     private final List<Record> records;
 
-    public AerospikeSimpleBatchLocks(List<Record> records) {
+    public AerospikeBasicBatchLocks(List<Record> records) {
         this.records = records;
     }
 

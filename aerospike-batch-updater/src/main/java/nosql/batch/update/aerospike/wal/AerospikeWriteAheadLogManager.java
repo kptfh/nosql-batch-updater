@@ -13,12 +13,14 @@ import com.aerospike.client.query.Filter;
 import com.aerospike.client.query.IndexType;
 import com.aerospike.client.query.RecordSet;
 import com.aerospike.client.query.Statement;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.BatchUpdate;
 import nosql.batch.update.aerospike.lock.AerospikeBatchLocks;
 import nosql.batch.update.wal.WalRecord;
 import nosql.batch.update.wal.WriteAheadLogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
 
 import java.nio.ByteBuffer;
 import java.time.Clock;
@@ -37,6 +39,7 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
     private static final String TIMESTAMP_BIN_NAME = "timestamp";
 
     private final IAerospikeClient client;
+    private IAerospikeReactorClient reactorClient;
     private final String walNamespace;
     private final String walSetName;
     private final WritePolicy writePolicy;
@@ -45,10 +48,12 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
     private final Clock clock;
 
     public AerospikeWriteAheadLogManager(IAerospikeClient client,
+                                         IAerospikeReactorClient reactorClient,
                                          String walNamespace, String walSetName,
                                          AerospikeBatchUpdateSerde<LOCKS, UPDATES, EV> batchSerializer,
                                          Clock clock) {
         this.client = client;
+        this.reactorClient = reactorClient;
         this.walNamespace = walNamespace;
         this.walSetName = walSetName;
         this.writePolicy = configureWritePolicy(client.getWritePolicyDefault());
@@ -92,8 +97,9 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
     }
 
     @Override
-    public void deleteBatch(Value batchId) {
-        client.delete(deletePolicy, new Key(walNamespace, walSetName, batchId));
+    public Mono<Void> deleteBatch(Value batchId) {
+        return reactorClient.delete(deletePolicy, new Key(walNamespace, walSetName, batchId))
+                .then();
     }
 
     @Override

@@ -45,6 +45,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
+        <aerospike-client.version>4.4.5</aerospike-client.version>
         <slf4j.version>1.7.25</slf4j.version>
 
         <!-- Tests -->
@@ -56,6 +57,7 @@
         <hamcrest.version>1.3</hamcrest.version>
         <mockito.version>1.9.5</mockito.version>
         <log4j.version>2.11.1</log4j.version>
+        <awaitility.version>3.1.6</awaitility.version>
 
         <!-- Plugins -->
         <jacoco-plugin.version>0.7.7.201606060606</jacoco-plugin.version>
@@ -64,7 +66,8 @@
         <maven-compiler-plugin.version>3.5.1</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>2.19.1</maven-surefire-plugin.version>
         <versions-maven-plugin.version>2.3</versions-maven-plugin.version>
-        <aerospike-client.version>4.4.2</aerospike-client.version>
+
+        <reactor-core.version>3.2.12.RELEASE</reactor-core.version>
     </properties>
 
 
@@ -72,8 +75,21 @@
         <dependencies>
 
             <dependency>
+                <groupId>io.projectreactor</groupId>
+                <artifactId>reactor-core</artifactId>
+                <version>${reactor-core.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>com.aerospike</groupId>
                 <artifactId>aerospike-client</artifactId>
+                <version>${aerospike-client.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.aerospike</groupId>
+                <artifactId>aerospike-reactor-client</artifactId>
                 <version>${aerospike-client.version}</version>
                 <scope>provided</scope>
             </dependency>
@@ -138,6 +154,13 @@
                 <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-api</artifactId>
                 <version>${log4j.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
                 <scope>test</scope>
             </dependency>
 

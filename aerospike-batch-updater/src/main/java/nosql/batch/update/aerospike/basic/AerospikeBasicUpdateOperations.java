@@ -1,4 +1,4 @@
-package nosql.batch.update.aerospike.simple;
+package nosql.batch.update.aerospike.basic;
 
 import com.aerospike.client.Bin;
 import com.aerospike.client.IAerospikeClient;
@@ -11,12 +11,12 @@ import java.util.concurrent.CompletableFuture;
 import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.runAsync;
 
-public class AerospikeSimpleUpdateOperations implements UpdateOperations<List<Record>> {
+public class AerospikeBasicUpdateOperations implements UpdateOperations<List<Record>> {
 
     private final IAerospikeClient client;
     private final WritePolicy writePolicy;
 
-    AerospikeSimpleUpdateOperations(IAerospikeClient client) {
+    public AerospikeBasicUpdateOperations(IAerospikeClient client) {
         this.client = client;
         this.writePolicy = client.getWritePolicyDefault();
     }

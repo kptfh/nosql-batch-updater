@@ -9,12 +9,15 @@ import com.aerospike.client.ResultCode;
 import com.aerospike.client.Value;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.lock.LockOperations;
 import nosql.batch.update.lock.LockingException;
 import nosql.batch.update.lock.PermanentLockingException;
 import nosql.batch.update.lock.TemporaryLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,15 +46,18 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
     }
 
     private final IAerospikeClient client;
+    private final IAerospikeReactorClient reactorClient;
     private final WritePolicy putLockPolicy;
     private final WritePolicy deleteLockPolicy;
     private final AerospikeExpectedValuesOperations<EV> expectedValuesOperations;
     private final ExecutorService executorService;
 
     public AerospikeLockOperations(IAerospikeClient client,
+                                   IAerospikeReactorClient reactorClient,
                                    AerospikeExpectedValuesOperations<EV> expectedValuesOperations, ExecutorService executorService) {
         this.client = client;
         this.putLockPolicy = configurePutLockPolicy(client.getWritePolicyDefault());
+        this.reactorClient = reactorClient;
         this.deleteLockPolicy = putLockPolicy;
         this.expectedValuesOperations = expectedValuesOperations;
         this.executorService = executorService;
@@ -65,9 +71,9 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
     }
 
     @Override
-    public List<AerospikeLock> acquire(Value batchId, LOCKS batchLocks, boolean checkTransactionId,
+    public List<AerospikeLock> acquire(Value batchId, LOCKS batchLocks, boolean checkBatchId,
                                        Consumer<Collection<AerospikeLock>> onErrorCleaner) throws LockingException {
-        List<AerospikeLock> keysLocked = putLocks(batchId, batchLocks, checkTransactionId, onErrorCleaner);
+        List<AerospikeLock> keysLocked = putLocks(batchId, batchLocks, checkBatchId, onErrorCleaner);
         try {
             expectedValuesOperations.checkExpectedValues(keysLocked, batchLocks.expectedValues());
         } catch (Throwable t){
@@ -99,9 +105,9 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         for(ExecResult<AerospikeLock> result : lockResults){
             if(result.throwable != null){
                 throwable = result.throwable;
-                break;
+            } else {
+                locks.add(result.value);
             }
-            locks.add(result.value);
         }
 
         if(throwable != null){
@@ -129,25 +135,28 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
                     logger.info("Previously locked by this batch update key=[{}], batchId=[{}]", lockKey, batchId);
                     return new AerospikeLock(SAME_BATCH, lockKey);
                 } else {
-                    logger.info("Locked by concurrent update key=[{}], batchId=[{}]", lockKey, batchId);
+                    Value batchIdLocked = getBatchIdOfLock(lockKey);
+                    logger.info("Locked by concurrent update key=[{}], batchId=[{}]", lockKey, batchIdLocked);
                     throw new TemporaryLockingException(String.format(
-                            "Locked by concurrent update key=[%s], batchId=[%s]", lockKey, batchId));
+                            "Locked by concurrent update key=[%s], batchId=[%s]", lockKey, batchIdLocked));
                 }
             }
             throw e;
         }
     }
 
-    private boolean alreadyLockedByBatch(Key lockKey, Value batchId) {
+    private Value getBatchIdOfLock(Key lockKey){
         Record record = client.get(null, lockKey);
-        return alreadyLockedByBatch(record, batchId);
+        return getBatchId(record);
     }
 
-    private boolean alreadyLockedByBatch(Record record, Value batchId) {
-        Value transactionIdLocked = Value.get(record.getValue(BATCH_ID_BIN_NAME));
-        return batchId.equals(transactionIdLocked);
+    private Value getBatchId(Record record) {
+        return Value.get(record.getValue(BATCH_ID_BIN_NAME));
     }
 
+    private boolean alreadyLockedByBatch(Key lockKey, Value batchId) {
+        return batchId.equals(getBatchIdOfLock(lockKey));
+    }
 
     @Override
     public List<AerospikeLock> getLockedByBatchUpdate(LOCKS aerospikeBatchLocks, Value batchId) {
@@ -158,7 +167,7 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         Record[] records = client.get(null, keysArray);
         for(int i = 0, m = keysArray.length; i < m; i++){
             Record record = records[i];
-            if(record != null && alreadyLockedByBatch(record, batchId)){
+            if(record != null && batchId.equals(getBatchId(record))){
                 keysFiltered.add(new AerospikeLock(SAME_BATCH, keysArray[i]));
             }
         }
@@ -166,14 +175,24 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
     }
 
     @Override
-    public void release(Collection<AerospikeLock> locks) {
+    public Mono<Void> release(Collection<AerospikeLock> locks, Value batchId) {
+
         List<CompletableFuture<?>> futures = new ArrayList<>(locks.size());
         for(AerospikeLock lock : locks){
-            futures.add(runAsync(() -> client.delete(deleteLockPolicy, lock.key), executorService));
-        }
-        allOf(futures.toArray(new CompletableFuture[0]));
-    }
+            futures.add(runAsync(() -> {
+                client.delete(deleteLockPolicy, lock.key);
 
+            }, executorService));
+        }
+        allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        return Flux.fromIterable(locks)
+                .flatMap(lock -> reactorClient.delete(deleteLockPolicy, lock.key)
+                        .doOnNext(key -> logger.trace("released lock key=[{}], batchId=[{}]", key, batchId))
+                )
+                .collect(Collectors.counting())
+                .then();
+    }
 
     public static class ExecResult<V> {
         public final V value;

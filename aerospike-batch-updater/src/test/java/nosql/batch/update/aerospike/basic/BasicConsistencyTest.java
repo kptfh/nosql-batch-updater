@@ -1,15 +1,17 @@
-package nosql.batch.update.aerospike.simple;
+package nosql.batch.update.aerospike.basic;
 
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Bin;
 import com.aerospike.client.Key;
 import com.aerospike.client.Value;
+import com.aerospike.client.async.NioEventLoops;
+import com.aerospike.client.reactor.AerospikeReactorClient;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.BatchOperations;
 import nosql.batch.update.BatchUpdater;
+import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
-import nosql.batch.update.aerospike.simple.lock.AerospikeSimpleBatchLocks;
 import nosql.batch.update.lock.LockingException;
-import nosql.batch.update.lock.TemporaryLockingException;
 import org.junit.Test;
 import org.testcontainers.containers.GenericContainer;
 
@@ -23,25 +25,25 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static nosql.batch.update.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
-import static nosql.batch.update.aerospike.AerospikeTestUtils.getAerospikeContainer;
-import static nosql.batch.update.aerospike.simple.AerospikeSimpleBatchUpdaters.postLockOperations;
+import static nosql.batch.update.aerospike.AerospikeTestUtils.*;
+import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicOperations;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class ConcurrentSimpleTest {
+public class BasicConsistencyTest {
 
     static final GenericContainer aerospike = getAerospikeContainer();
 
-    static final AerospikeClient client = new AerospikeClient(aerospike.getContainerIpAddress(),
-            aerospike.getMappedPort(AEROSPIKE_PROPERTIES.getPort()));
+    static final NioEventLoops eventLoops = new NioEventLoops();
+    static final AerospikeClient client = getAerospikeClient(aerospike, eventLoops);
+    static final IAerospikeReactorClient reactorClient = new AerospikeReactorClient(client, eventLoops);
 
-    static BatchOperations<AerospikeSimpleBatchLocks, List<Record>, AerospikeLock, Value> operations = postLockOperations(
-            client,
+    static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations = basicOperations(
+            client, reactorClient,
             AEROSPIKE_PROPERTIES.getNamespace(), "wal",
             Clock.systemUTC(),
             Executors.newFixedThreadPool(4));
 
-    static BatchUpdater<AerospikeSimpleBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
+    static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
 
     static AtomicInteger keyCounter = new AtomicInteger();
     private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
@@ -74,29 +76,40 @@ public class ConcurrentSimpleTest {
 
     private void update(){
         for(int i = 0; i < 1000; i++){
-            com.aerospike.client.Record record1 = client.get(null, key1);
-            Long value1 = record1 != null ? (Long)record1.getValue(BIN_NAME) : null;
-            com.aerospike.client.Record record2 = client.get(null, key2);
-            Long value2 = record2 != null ? (Long)record2.getValue(BIN_NAME) : null;
-
             try {
-                updater.update(new AerospikeSimpleBatchUpdate(
-                        new AerospikeSimpleBatchLocks(asList(
-                                new Record(key1, singletonList(new Bin(BIN_NAME, value1))),
-                                new Record(key2, singletonList(new Bin(BIN_NAME, value2))))),
-                        asList(
-                                new Record(key1, singletonList(new Bin(BIN_NAME, (value1 != null ? value1 : 0) + 1))),
-                                new Record(key2, singletonList(new Bin(BIN_NAME, (value2 != null ? value2 : 0) + 1)))))
-                );
+                incrementBoth(key1, key2, updater);
             } catch (LockingException e) {
                 exceptionsCount.incrementAndGet();
                 i--;
                 try {
-                    Thread.sleep(random.nextInt(100));
+                    Thread.sleep(random.nextInt(50));
                 } catch (InterruptedException e1) {
                     throw new RuntimeException(e1);
                 }
             }
         }
+    }
+
+    public static void incrementBoth(Key key1, Key key2,
+                                     BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater) {
+        Long value1 = (Long)getValue(client, key1);
+        Long value2 = (Long)getValue(client, key2);
+
+        updater.update(new AerospikeBasicBatchUpdate(
+                new AerospikeBasicBatchLocks(asList(
+                        record(key1, value1),
+                        record(key2, value2))),
+                asList(
+                        record(key1, (value1 != null ? value1 : 0) + 1),
+                        record(key2, (value2 != null ? value2 : 0) + 1))));
+    }
+
+    public static Record record(Key key, Long value) {
+        return new Record(key, singletonList(new Bin(BIN_NAME, value)));
+    }
+
+    public static Object getValue(AerospikeClient client, Key key){
+        com.aerospike.client.Record record1 = client.get(null, key);
+        return record1 != null ? (Long)record1.getValue(BIN_NAME) : null;
     }
 }
