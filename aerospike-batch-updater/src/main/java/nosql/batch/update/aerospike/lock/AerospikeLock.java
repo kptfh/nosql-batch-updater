@@ -14,7 +14,9 @@ public class AerospikeLock extends Lock {
 
     @Override
     public boolean equals(Object o){
-        return o instanceof AerospikeLock && ((AerospikeLock) o).key.equals(key);
+        AerospikeLock aerospikeLock = (AerospikeLock)o;
+        return aerospikeLock.lockType == lockType
+                && aerospikeLock.key.equals(key);
     }
 
     @Override

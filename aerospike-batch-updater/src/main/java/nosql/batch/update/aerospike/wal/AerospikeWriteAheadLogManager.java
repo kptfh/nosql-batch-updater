@@ -74,17 +74,17 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
 
     @Override
     public Value writeBatch(BatchUpdate<LOCKS, UPDATES> batch) {
-        Value transactionId = Value.get(getBytesFromUUID(UUID.randomUUID()));
+        Value batchId = generateBatchId();
 
         List<Bin> batchBins = batchSerializer.write(batch);
         List<Bin> bins = new ArrayList<>(batchBins.size() + 1);
         bins.addAll(batchBins);
-        bins.add(new Bin(UUID_BIN_NAME, transactionId));
+        bins.add(new Bin(UUID_BIN_NAME, batchId));
         bins.add(new Bin(TIMESTAMP_BIN_NAME, Value.get(clock.millis())));
 
         try {
             client.put(writePolicy,
-                    new Key(walNamespace, walSetName, transactionId),
+                    new Key(walNamespace, walSetName, batchId),
                     bins.toArray(new Bin[0]));
         } catch (AerospikeException ae) {
             if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG){
@@ -93,7 +93,11 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
             throw ae;
         }
 
-        return transactionId;
+        return batchId;
+    }
+
+    public static Value generateBatchId() {
+        return Value.get(getBytesFromUUID(UUID.randomUUID()));
     }
 
     @Override
