@@ -54,7 +54,7 @@ public class AerospikeBasicExpectedValueOperations implements AerospikeExpectedV
             if(!equals(actualValue, bin.value)){
                 throw new PermanentLockingException(String.format(
                         "Unexpected value: bin=[%s], expected=[%s], actual=[%s]",
-                        bin.name, bin.value, batchRead.record.getValue(bin.name)));
+                        bin.name, bin.value, actualValue));
             }
         }
     }

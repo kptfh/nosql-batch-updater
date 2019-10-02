@@ -1,0 +1,74 @@
+package nosql.batch.update.aerospike.basic.lock;
+
+import com.aerospike.client.AerospikeClient;
+import com.aerospike.client.Key;
+import com.aerospike.client.Value;
+import com.aerospike.client.async.NioEventLoops;
+import com.aerospike.client.reactor.AerospikeReactorClient;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager;
+import nosql.batch.update.lock.LockOperationsTest;
+import org.jetbrains.annotations.NotNull;
+import org.testcontainers.containers.GenericContainer;
+
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+import static java.util.Arrays.asList;
+import static nosql.batch.update.aerospike.AerospikeTestUtils.*;
+import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicLockOperations;
+import static nosql.batch.update.aerospike.basic.BasicConsistencyTest.record;
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class AerospikeBasicLockOperationsTest
+        extends LockOperationsTest<AerospikeBasicBatchLocks, AerospikeLock, Value> {
+
+    static final GenericContainer aerospike = getAerospikeContainer();
+
+    static final NioEventLoops eventLoops = new NioEventLoops();
+    static final AerospikeClient client = getAerospikeClient(aerospike, eventLoops);
+    static final IAerospikeReactorClient reactorClient = new AerospikeReactorClient(client, eventLoops);
+
+    static AtomicInteger keyCounter = new AtomicInteger();
+    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+    private Key key3 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+    private Key key4 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+
+
+    AerospikeBasicBatchLocks locks1 = new AerospikeBasicBatchLocks(asList(record(key1, null), record(key2, null)));
+    AerospikeBasicBatchLocks locks2 = new AerospikeBasicBatchLocks(asList(record(key3, null), record(key4, null)));
+
+    public AerospikeBasicLockOperationsTest() {
+        super(basicLockOperations(client, reactorClient, Executors.newFixedThreadPool(4)));
+    }
+
+    @Override
+    protected AerospikeBasicBatchLocks getLocks1() {
+        return locks1;
+    }
+
+    @Override
+    protected AerospikeBasicBatchLocks getLocks2() {
+        return locks2;
+    }
+
+    @Override
+    protected Value generateBatchId() {
+        return AerospikeWriteAheadLogManager.generateBatchId();
+    }
+
+    @Override
+    protected void assertThatSameLockKeys(List<AerospikeLock> locks1, List<AerospikeLock> locks2) {
+        assertThat(toKeys(locks1)).containsExactlyInAnyOrderElementsOf(toKeys(locks2));
+    }
+
+    @NotNull
+    private Set<Key> toKeys(List<AerospikeLock> locks1) {
+        return locks1.stream().map(l -> l.key).collect(Collectors.toSet());
+    }
+}
