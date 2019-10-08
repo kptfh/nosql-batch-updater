@@ -2,26 +2,28 @@ package nosql.batch.update;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-abstract public class FlakingUpdateOperations<UPDATES> implements UpdateOperations<UPDATES>{
+import static nosql.batch.update.util.HangingUtil.hang;
+
+abstract public class HangingUpdateOperations<UPDATES> implements UpdateOperations<UPDATES>{
 
     private final UpdateOperations<UPDATES> updateOperations;
-    private final AtomicBoolean failsUpdate;
+    private final AtomicBoolean hangUpdate;
 
-    public FlakingUpdateOperations(UpdateOperations<UPDATES> updateOperations, AtomicBoolean failsUpdate) {
+    public HangingUpdateOperations(UpdateOperations<UPDATES> updateOperations, AtomicBoolean hangUpdate) {
         this.updateOperations = updateOperations;
-        this.failsUpdate = failsUpdate;
+        this.hangUpdate = hangUpdate;
     }
 
     abstract protected UPDATES selectFlakingToUpdate(UPDATES batchOfUpdates);
 
     @Override
     public void updateMany(UPDATES batchOfUpdates) {
-        if(failsUpdate.get()){
+        if(hangUpdate.get()){
             UPDATES partialUpdate = selectFlakingToUpdate(batchOfUpdates);
             updateOperations.updateMany(partialUpdate);
-
-            throw new RuntimeException();
-        } else {
+            hang();
+        }
+        else {
             updateOperations.updateMany(batchOfUpdates);
         }
     }

@@ -3,12 +3,14 @@ package nosql.batch.update.util;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class FlakingUtil {
+public class HangingUtil {
 
     private static final Random random = new Random();
+    public static final AtomicBoolean hanged = new AtomicBoolean();
 
     public static <V> List<V> selectFlaking(Collection<V> keys, Consumer<V> failedConsumer) {
         return keys.stream()
@@ -20,5 +22,16 @@ public class FlakingUtil {
                     return !fail;
                 })
                 .collect(Collectors.toList());
+    }
+
+    public static <V> V hang() {
+        hanged.set(true);
+        while(true){
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

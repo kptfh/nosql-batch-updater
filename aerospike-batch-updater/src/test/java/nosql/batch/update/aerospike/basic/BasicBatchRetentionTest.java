@@ -7,13 +7,12 @@ import com.aerospike.client.async.NioEventLoops;
 import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.BatchOperations;
+import nosql.batch.update.BatchRetentionTest;
 import nosql.batch.update.BatchUpdater;
-import nosql.batch.update.RecoveryTest;
 import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.util.FixedClock;
 import nosql.batch.update.wal.CompletionStatistic;
-import nosql.batch.update.wal.ExclusiveLocker;
 import nosql.batch.update.wal.WriteAheadLogCompleter;
 import org.testcontainers.containers.GenericContainer;
 
@@ -25,12 +24,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static nosql.batch.update.aerospike.AerospikeTestUtils.*;
 import static nosql.batch.update.aerospike.basic.BasicConsistencyTest.getValue;
 import static nosql.batch.update.aerospike.basic.BasicConsistencyTest.incrementBoth;
-import static nosql.batch.update.aerospike.basic.util.BasicHangingOperationsUtil.hangingOperations;
+import static nosql.batch.update.aerospike.basic.util.BasicFailingOperationsUtil.failingOperations;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.awaitility.Duration.ONE_SECOND;
 
-public class BasicRecoveryTest extends RecoveryTest {
+public class BasicBatchRetentionTest extends BatchRetentionTest {
 
     static final GenericContainer aerospike = getAerospikeContainer();
 
@@ -41,7 +40,8 @@ public class BasicRecoveryTest extends RecoveryTest {
     static final FixedClock clock = new FixedClock();
 
     static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations
-            = hangingOperations(client, reactorClient, clock, hangsAcquire, hangsUpdate, hangsRelease, hangsDeleteBatchInWal);
+            = failingOperations(client, reactorClient, clock,
+            failsAcquireLock, failsCheckValue, failsMutate, failsReleaseLock, failsDeleteBatch);
 
     static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater
             = new BatchUpdater<>(operations);
@@ -51,7 +51,7 @@ public class BasicRecoveryTest extends RecoveryTest {
     static WriteAheadLogCompleter<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> walCompleter
             = new WriteAheadLogCompleter<>(
             operations, STALE_BATCHES_THRESHOLD,
-            new DummyExclusiveLocker(),
+            new BasicRecoveryTest.DummyExclusiveLocker(),
             Executors.newScheduledThreadPool(1));
 
     static AtomicInteger keyCounter = new AtomicInteger();
@@ -63,12 +63,6 @@ public class BasicRecoveryTest extends RecoveryTest {
         for(int i = 0; i < 10; i++){
             incrementBoth(key1, key2, updater);
         }
-    }
-
-    @Override
-    protected CompletionStatistic runCompleter(){
-        clock.setTime(STALE_BATCHES_THRESHOLD.toMillis() + 1);
-        return walCompleter.completeHangedTransactions();
     }
 
     @Override
@@ -86,17 +80,11 @@ public class BasicRecoveryTest extends RecoveryTest {
         clock.setTime(0);
     }
 
-    static class DummyExclusiveLocker implements ExclusiveLocker{
-
-        @Override
-        public boolean acquire() {
-            return true;
-        }
-
-        @Override
-        public void release() {}
-
-        @Override
-        public void shutdown() {}
+    @Override
+    protected CompletionStatistic runCompleter() {
+        clock.setTime(STALE_BATCHES_THRESHOLD.toMillis() + 1);
+        return walCompleter.completeHangedTransactions();
     }
+
+
 }

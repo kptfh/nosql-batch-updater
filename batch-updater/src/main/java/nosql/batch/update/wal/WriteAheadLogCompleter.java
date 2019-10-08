@@ -2,7 +2,7 @@ package nosql.batch.update.wal;
 
 import nosql.batch.update.BatchOperations;
 import nosql.batch.update.lock.Lock;
-import nosql.batch.update.lock.TemporaryLockingException;
+import nosql.batch.update.lock.LockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,17 +77,22 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         this.suspended.set(false);
     }
 
-    public void completeHangedTransactions() {
+    public CompletionStatistic completeHangedTransactions() {
 
         if(suspended.get()){
             logger.info("WAL execution was suspended");
-            return;
+            return new CompletionStatistic(0, 0, 0, 0);
         }
 
+        int staleBatchesCount = 0;
+        int completeBatchesCount = 0;
+        int ignoredBatchesCount = 0;
+        int errorBatchesCount = 0;
         try {
             if(exclusiveLocker.acquire()){
                 List<WalRecord<LOCKS, UPDATES, BATCH_ID>> staleBatches
                         = writeAheadLogManager.getStaleBatches(staleBatchesThreshold);
+                staleBatchesCount += staleBatches.size();
                 logger.info("Got {} stale transactions", staleBatches.size());
                 for(WalRecord<LOCKS, UPDATES, BATCH_ID> batch : staleBatches){
                     if(suspended.get()){
@@ -106,19 +111,22 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
                         try {
                             batchOperations.processAndDeleteTransaction(
                                     batch.batchId, batch.batchUpdate, true);
+                            completeBatchesCount++;
                             logger.info("Successfully complete transaction txId=[{}]", batch.batchId);
                         }
                         //this is expected behaviour that may have place in case of hanged transaction was not completed:
                         //not able to acquire all locks (didn't match expected value
                         // (may have place if initial transaction was interrupted on release stage and released values were modified))
-                        catch (TemporaryLockingException be) {
+                        catch (LockingException be) {
                             logger.info("Failed to complete transaction txId=[{}] as it's already completed", batch.batchId, be);
                             batchOperations.releaseLocksAndDeleteWalTransactionOnError(
                                     locks, batch.batchId);
+                            ignoredBatchesCount ++;
                             logger.info("released locks for transaction txId=[{}]", batch.batchId, be);
                         }
                         //even in case of error need to move to the next one
                         catch (Exception e) {
+                            errorBatchesCount ++;
                             logger.error("!!! Failed to complete transaction txId=[{}], need to be investigated",
                                     batch.batchId, e);
                         }
@@ -130,6 +138,8 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
             logger.error("Error while running completeHangedTransactions()", t);
             throw t;
         }
+
+        return new CompletionStatistic(staleBatchesCount, completeBatchesCount, ignoredBatchesCount, errorBatchesCount);
     }
 
 }

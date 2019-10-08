@@ -30,9 +30,8 @@ public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
     }
 
     private void releaseLocksAndDeleteWalTransaction(Collection<L> locks, BATCH_ID batchId) {
-        lockOperations.release(locks, batchId)
-                .then(writeAheadLogManager.deleteBatch(batchId))
-                .subscribe();
+        lockOperations.release(locks, batchId).block();
+        writeAheadLogManager.deleteBatch(batchId).block();
     }
 
     public void releaseLocksAndDeleteWalTransactionOnError(LOCKS locks, BATCH_ID batchId) {

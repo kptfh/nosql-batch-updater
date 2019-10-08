@@ -86,6 +86,7 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
             client.put(writePolicy,
                     new Key(walNamespace, walSetName, batchId),
                     bins.toArray(new Bin[0]));
+            logger.trace("added batch to wal: {}", batchId);
         } catch (AerospikeException ae) {
             if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG){
                 logger.error("update data size to big: {}", batchBins.stream().mapToInt(bin -> bin.value.estimateSize()).sum());
@@ -102,8 +103,12 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
 
     @Override
     public Mono<Void> deleteBatch(Value batchId) {
-        return reactorClient.delete(deletePolicy, new Key(walNamespace, walSetName, batchId))
-                .then();
+        client.delete(deletePolicy, new Key(walNamespace, walSetName, batchId));
+        logger.trace("removed batch from wal: {}", batchId);
+//        return reactorClient.delete(deletePolicy, new Key(walNamespace, walSetName, batchId))
+//                .doOnNext(key -> logger.trace("removed batch from wal: {}", batchId))
+//                .then();
+        return Mono.just(1).then();
     }
 
     @Override

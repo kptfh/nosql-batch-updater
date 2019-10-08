@@ -1,82 +1,105 @@
 package nosql.batch.update;
 
-import nosql.batch.update.util.FixedClock;
+import nosql.batch.update.wal.CompletionStatistic;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
+import static nosql.batch.update.util.HangingUtil.hanged;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.awaitility.Duration.ONE_MINUTE;
+
+/**
+ * Check that hanged batch get recovered by WriteAheadLogCompleter
+ */
 abstract public class RecoveryTest {
-
-    private static Logger logger = LoggerFactory.getLogger(RecoveryTest.class);
 
     protected abstract void cleanUp() throws InterruptedException;
 
     protected abstract void runUpdate();
 
-    protected abstract void runCompleter();
+    protected abstract CompletionStatistic runCompleter();
 
     protected abstract void checkForConsistency();
 
-    protected static final AtomicBoolean failsAcquire = new AtomicBoolean();
-    protected static final AtomicBoolean failsUpdate = new AtomicBoolean();
-    protected static final AtomicBoolean failsRelease = new AtomicBoolean();
-    protected static final AtomicBoolean failsDeleteBatchInWal = new AtomicBoolean();
-
+    protected static final AtomicBoolean hangsAcquire = new AtomicBoolean();
+    protected static final AtomicBoolean hangsUpdate = new AtomicBoolean();
+    protected static final AtomicBoolean hangsRelease = new AtomicBoolean();
+    protected static final AtomicBoolean hangsDeleteBatchInWal = new AtomicBoolean();
 
     @Test
-    public void shouldBecameConsistentAfterAcquireLockFailed() throws InterruptedException {
-        shouldBecameConsistentAfterFailure(() -> failsAcquire.set(true));
+    public void shouldBecameConsistentAfterAcquireLockHanged() throws InterruptedException {
+        shouldBecameConsistentAfterHangAndCompletion(
+                () -> hangsAcquire.set(true),
+                completionStatisticAssertion(1, 1, 0));
+     }
+
+    @Test
+    public void shouldBecameConsistentAfterMutateHanged() throws InterruptedException {
+        shouldBecameConsistentAfterHangAndCompletion(
+                () -> hangsUpdate.set(true),
+                completionStatisticAssertion(1, 1, 0));
     }
 
     @Test
-    public void shouldBecameConsistentAfterReleaseLockFailed() throws InterruptedException {
-        shouldBecameConsistentAfterFailure(() -> failsRelease.set(true));
+    public void shouldBecameConsistentAfterReleaseLockHanged() throws InterruptedException {
+        shouldBecameConsistentAfterHangAndCompletion(
+                () -> hangsRelease.set(true),
+                completionStatisticAssertion(1, 1, 0));
     }
 
     @Test
-    public void shouldBecameConsistentAfterMutateFailed() throws InterruptedException {
-        shouldBecameConsistentAfterFailure(() -> failsUpdate.set(true));
+    public void shouldBecameConsistentAfterDeleteTransactionHanged() throws InterruptedException {
+        shouldBecameConsistentAfterHangAndCompletion(
+                () -> hangsDeleteBatchInWal.set(true),
+                completionStatisticAssertion(1, 0, 1));
     }
 
-    @Test
-    public void shouldBecameConsistentAfterDeleteTransactionFailed() throws InterruptedException {
-        shouldBecameConsistentAfterFailure(() -> failsDeleteBatchInWal.set(true));
-    }
+    protected void shouldBecameConsistentAfterHangAndCompletion(
+            Runnable breaker, Consumer<CompletionStatistic> completionStatisticAssertion) throws InterruptedException {
 
-    protected void shouldBecameConsistentAfterFailure(Runnable breaker) throws InterruptedException {
         for(int i = 0; i < 10; i++) {
             cleanUp();
 
             fixAll();
             breaker.run();
 
-            boolean failed = false;
-            try {
-                runUpdate();
-            } catch (Exception e) {
-                //here we may got inconsistent state
-                failed = true;
-                logger.error("As expected failed on update");
-            }
+            new Thread(this::runUpdate).start();
 
-            if(failed) {
-                fixAll();
+            await().timeout(ONE_MINUTE).until(hanged::get);
 
-                runCompleter();
+            fixAll();
 
-                //check state. It should be fixed at this time
-                checkForConsistency();
-            }
+            CompletionStatistic completionStat = runCompleter();
+            completionStatisticAssertion.accept(completionStat);
+
+            //check state. It should be fixed at this time
+            checkForConsistency();
         }
     }
 
     protected void fixAll() {
-        failsAcquire.set(false);
-        failsUpdate.set(false);
-        failsRelease.set(false);
-        failsDeleteBatchInWal.set(false);
+        hangsAcquire.set(false);
+        hangsUpdate.set(false);
+        hangsRelease.set(false);
+        hangsDeleteBatchInWal.set(false);
+        hanged.set(false);
     }
 
+    static Consumer<CompletionStatistic> completionStatisticAssertion(
+            int staleBatchesFound, int staleBatchesComplete, int staleBatchesIgnored){
+        return completionStatistic -> {
+            assertThat(completionStatistic.staleBatchesFound).isEqualTo(staleBatchesFound);
+            assertThat(completionStatistic.staleBatchesComplete).isEqualTo(staleBatchesComplete);
+            assertThat(completionStatistic.staleBatchesIgnored).isEqualTo(staleBatchesIgnored);
+        };
+    }
+
+    static Consumer<CompletionStatistic> completionStatisticAssertion(int staleBatchesFound){
+        return completionStatistic -> {
+            assertThat(completionStatistic.staleBatchesFound).isEqualTo(staleBatchesFound);
+        };
+    }
 }
