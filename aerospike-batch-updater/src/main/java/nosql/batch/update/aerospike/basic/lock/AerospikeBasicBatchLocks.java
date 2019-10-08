@@ -1,8 +1,8 @@
 package nosql.batch.update.aerospike.basic.lock;
 
 import com.aerospike.client.Key;
-import nosql.batch.update.aerospike.lock.AerospikeBatchLocks;
 import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.aerospike.lock.AerospikeBatchLocks;
 
 import java.util.List;
 import java.util.stream.Collectors;

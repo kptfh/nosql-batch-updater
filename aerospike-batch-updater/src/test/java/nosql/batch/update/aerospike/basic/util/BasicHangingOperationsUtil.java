@@ -20,30 +20,30 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static nosql.batch.update.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicLockOperations;
 import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicWalManager;
-import static nosql.batch.update.aerospike.basic.AerospikeBasicFlakingUpdateOperations.flakingUpdates;
-import static nosql.batch.update.aerospike.basic.lock.AerospikeBasicFlakingLockOperations.flakingLocks;
-import static nosql.batch.update.aerospike.wal.AerospikeFlakingWriteAheadLogManager.flakingWal;
+import static nosql.batch.update.aerospike.basic.AerospikeBasicHangingUpdateOperations.hangingUpdates;
+import static nosql.batch.update.aerospike.basic.lock.AerospikeBasicHangingLockOperations.hangingLocks;
+import static nosql.batch.update.aerospike.wal.AerospikeHangingWriteAheadLogManager.hangingWal;
 
-public class BasicFlakingOperationsUtil {
+public class BasicHangingOperationsUtil {
 
-    public static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> flakingOperations(
+    public static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> hangingOperations(
             IAerospikeClient client, IAerospikeReactorClient reactorClient,
             Clock clock,
-            AtomicBoolean failsAcquire,
-            AtomicBoolean failsUpdate,
-            AtomicBoolean failsRelease,
-            AtomicBoolean failsDeleteWal){
+            AtomicBoolean hangsAcquire,
+            AtomicBoolean hangsUpdate,
+            AtomicBoolean hangsRelease,
+            AtomicBoolean hangsDeleteWal){
 
         LockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> lockOperations
-                = flakingLocks(basicLockOperations(client, reactorClient, Executors.newFixedThreadPool(4)),
-                failsAcquire, failsRelease);
+                = hangingLocks(basicLockOperations(client, reactorClient, Executors.newFixedThreadPool(4)),
+                hangsAcquire, hangsRelease);
 
         UpdateOperations<List<Record>> updateOperations =
-                flakingUpdates(new AerospikeBasicUpdateOperations(client), failsUpdate);
+                hangingUpdates(new AerospikeBasicUpdateOperations(client), hangsUpdate);
 
         WriteAheadLogManager<AerospikeBasicBatchLocks, List<Record>, Value> walManager
-                = flakingWal(basicWalManager(client, reactorClient, AEROSPIKE_PROPERTIES.getNamespace(), "wal", clock),
-                failsDeleteWal);
+                = hangingWal(basicWalManager(client, reactorClient, AEROSPIKE_PROPERTIES.getNamespace(), "wal", clock),
+                hangsDeleteWal);
 
         return new BatchOperations<>(walManager, lockOperations, updateOperations);
     }

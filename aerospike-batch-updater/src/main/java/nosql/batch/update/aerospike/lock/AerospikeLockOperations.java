@@ -22,14 +22,11 @@ import reactor.core.publisher.Mono;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.concurrent.CompletableFuture.allOf;
-import static java.util.concurrent.CompletableFuture.runAsync;
 import static nosql.batch.update.lock.Lock.LockType.LOCKED;
 import static nosql.batch.update.lock.Lock.LockType.SAME_BATCH;
 import static nosql.batch.update.util.AsyncUtil.supplyAsyncAll;
@@ -75,7 +72,7 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
                                        Consumer<Collection<AerospikeLock>> onErrorCleaner) throws LockingException {
         List<AerospikeLock> keysLocked = putLocks(batchId, batchLocks, checkBatchId, onErrorCleaner);
         try {
-            expectedValuesOperations.checkExpectedValues(keysLocked, batchLocks.expectedValues());
+            checkExpectedValues(batchLocks, keysLocked);
         } catch (Throwable t){
             onErrorCleaner.accept(keysLocked);
             throw t;
@@ -83,9 +80,9 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         return keysLocked;
     }
 
-    private List<AerospikeLock> putLocks(
+    protected List<AerospikeLock> putLocks(
             Value batchId,
-            AerospikeBatchLocks<EV> batchLocks,
+            LOCKS batchLocks,
             boolean checkTransactionId,
             Consumer<Collection<AerospikeLock>> onErrorCleanup) throws LockingException {
 
@@ -145,6 +142,10 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         }
     }
 
+    protected void checkExpectedValues(LOCKS batchLocks, List<AerospikeLock> keysLocked) {
+        expectedValuesOperations.checkExpectedValues(keysLocked, batchLocks.expectedValues());
+    }
+
     private Value getBatchIdOfLock(Key lockKey){
         Record record = client.get(null, lockKey);
         return getBatchId(record);
@@ -176,15 +177,6 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
 
     @Override
     public Mono<Void> release(Collection<AerospikeLock> locks, Value batchId) {
-
-        List<CompletableFuture<?>> futures = new ArrayList<>(locks.size());
-        for(AerospikeLock lock : locks){
-            futures.add(runAsync(() -> {
-                client.delete(deleteLockPolicy, lock.key);
-
-            }, executorService));
-        }
-        allOf(futures.toArray(new CompletableFuture[0])).join();
 
         return Flux.fromIterable(locks)
                 .flatMap(lock -> reactorClient.delete(deleteLockPolicy, lock.key)

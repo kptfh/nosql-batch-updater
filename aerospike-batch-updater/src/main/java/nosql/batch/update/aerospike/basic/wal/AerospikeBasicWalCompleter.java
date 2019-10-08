@@ -2,8 +2,8 @@ package nosql.batch.update.aerospike.basic.wal;
 
 import com.aerospike.client.Value;
 import nosql.batch.update.BatchOperations;
-import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.aerospike.wal.AerospikeExclusiveLocker;
 import nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager;
 import nosql.batch.update.wal.WriteAheadLogCompleter;

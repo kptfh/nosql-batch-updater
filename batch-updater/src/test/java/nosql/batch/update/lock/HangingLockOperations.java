@@ -7,13 +7,16 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-abstract public class FlakingLockOperations<LOCKS, L extends Lock, BATCH_ID> implements LockOperations<LOCKS, L, BATCH_ID> {
+import static nosql.batch.update.util.HangingUtil.hang;
+
+abstract public class HangingLockOperations<LOCKS, L extends Lock, BATCH_ID> implements LockOperations<LOCKS, L, BATCH_ID> {
 
     private final LockOperations<LOCKS, L, BATCH_ID> lockOperations;
     private final AtomicBoolean failsAcquire;
     private final AtomicBoolean failsRelease;
 
-    public FlakingLockOperations(LockOperations<LOCKS, L, BATCH_ID> lockOperations, AtomicBoolean failsAcquire, AtomicBoolean failsRelease) {
+    public HangingLockOperations(LockOperations<LOCKS, L, BATCH_ID> lockOperations,
+                                 AtomicBoolean failsAcquire, AtomicBoolean failsRelease) {
         this.lockOperations = lockOperations;
         this.failsAcquire = failsAcquire;
         this.failsRelease = failsRelease;
@@ -27,9 +30,9 @@ abstract public class FlakingLockOperations<LOCKS, L extends Lock, BATCH_ID> imp
         if(failsAcquire.get()) {
             LOCKS partialLocks = selectFlakingToAcquire(locks);
 
-            lockOperations.acquire(batchId, partialLocks, checkTransactionId, collection -> {});
+            lockOperations.acquire(batchId, partialLocks, checkTransactionId, onErrorCleaner);
 
-            throw new RuntimeException();
+            return hang();
         } else {
             return lockOperations.acquire(batchId, locks, checkTransactionId, onErrorCleaner);
         }
@@ -45,7 +48,7 @@ abstract public class FlakingLockOperations<LOCKS, L extends Lock, BATCH_ID> imp
         if(failsRelease.get()){
             Collection<L> partialLocks = selectFlakingToRelease(locks);
             return lockOperations.release(partialLocks, batchId)
-                    .then(Mono.error(new RuntimeException()));
+                    .then(Mono.just(hang()));
         } else {
             return lockOperations.release(locks, batchId);
         }
