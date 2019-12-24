@@ -4,7 +4,7 @@
 
     <groupId>com.playtika.nosql</groupId>
     <artifactId>batch-updater-parent</artifactId>
-    <version>0.0.2</version>
+    <version>0.0.3-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -301,11 +301,11 @@
                 <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
 
-            <!--&lt;!&ndash; Attach Javadoc to release &ndash;&gt;-->
-            <!--<plugin>-->
-                <!--<groupId>org.apache.maven.plugins</groupId>-->
-                <!--<artifactId>maven-javadoc-plugin</artifactId>-->
-            <!--</plugin>-->
+            <!-- Attach Javadoc to release -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
 
             <!-- Attach sources to release -->
             <plugin>
