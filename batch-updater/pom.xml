@@ -18,9 +18,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.kptfh.nosql</groupId>
+        <groupId>com.playtika.nosql</groupId>
         <artifactId>batch-updater-parent</artifactId>
-        <version>0.0.1</version>
+        <version>0.0.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>batch-updater</artifactId>

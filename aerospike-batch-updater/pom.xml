@@ -18,9 +18,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.kptfh.nosql</groupId>
+        <groupId>com.playtika.nosql</groupId>
         <artifactId>batch-updater-parent</artifactId>
-        <version>0.0.1</version>
+        <version>0.0.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>aerospike-batch-updater</artifactId>
@@ -46,7 +46,7 @@
         </dependency>
 
         <dependency>
-            <groupId>io.kptfh.nosql</groupId>
+            <groupId>com.playtika.nosql</groupId>
             <artifactId>batch-updater</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -58,14 +58,14 @@
 
         <!-- Tests -->
         <dependency>
-            <groupId>io.kptfh.nosql</groupId>
+            <groupId>com.playtika.nosql</groupId>
             <artifactId>batch-updater</artifactId>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>io.kptfh.nosql</groupId>
+            <groupId>com.playtika.nosql</groupId>
             <artifactId>aerospike-container</artifactId>
             <scope>test</scope>
         </dependency>

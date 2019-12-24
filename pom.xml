@@ -2,9 +2,9 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.kptfh.nosql</groupId>
+    <groupId>com.playtika.nosql</groupId>
     <artifactId>batch-updater-parent</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -29,6 +29,13 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <scm>
+        <url>https://svn.apache.org/viewvc/maven</url>
+        <connection>scm:git:git://github.com/Playtika/nosql-batch-updater.git</connection>
+        <developerConnection>scm:git:git@github.com:Playtika/nosql-batch-updater.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <developers>
         <developer>
@@ -66,6 +73,18 @@
         <maven-compiler-plugin.version>3.5.1</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>2.19.1</maven-surefire-plugin.version>
         <versions-maven-plugin.version>2.3</versions-maven-plugin.version>
+        <nexus-staging-maven-plugin.version>1.6.3</nexus-staging-maven-plugin.version>
+        <maven.javadoc.plugin.version>3.1.1</maven.javadoc.plugin.version>
+        <maven.source.plugin.version>3.1.0</maven.source.plugin.version>
+
+        <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
+        <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
+
+        <!-- GPG -->
+        <gpg.keyname>3EEF24C7</gpg.keyname>
+        <gpg.defaultKeyring>false</gpg.defaultKeyring>
+        <gpg.useagent>true</gpg.useagent>
+        <gpg.lockMode>never</gpg.lockMode>
 
         <reactor-core.version>3.2.12.RELEASE</reactor-core.version>
     </properties>
@@ -95,7 +114,7 @@
             </dependency>
 
             <dependency>
-                <groupId>io.kptfh.nosql</groupId>
+                <groupId>com.playtika.nosql</groupId>
                 <artifactId>batch-updater</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -109,7 +128,7 @@
             <!--Test-->
 
             <dependency>
-                <groupId>io.kptfh.nosql</groupId>
+                <groupId>com.playtika.nosql</groupId>
                 <artifactId>batch-updater</artifactId>
                 <version>${project.version}</version>
                 <type>test-jar</type>
@@ -117,7 +136,7 @@
             </dependency>
 
             <dependency>
-                <groupId>io.kptfh.nosql</groupId>
+                <groupId>com.playtika.nosql</groupId>
                 <artifactId>aerospike-container</artifactId>
                 <version>${project.version}</version>
                 <scope>test</scope>
@@ -227,6 +246,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>${maven.javadoc.plugin.version}</version>
                     <executions>
                         <execution>
                             <id>attach-javadocs</id>
@@ -235,6 +255,10 @@
                             </goals>
                         </execution>
                     </executions>
+                    <configuration>
+                        <doclint>-Xdoclint:none</doclint>
+                        <failOnError>false</failOnError>
+                    </configuration>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -274,18 +298,61 @@
                     <!--</execution>-->
                 <!--</executions>-->
             <!--</plugin>-->
+            <!-- Compile -->
             <plugin>
-                <artifactId>maven-release-plugin</artifactId>
-                <version>2.4.1</version>
-                <configuration>
-                    <useReleaseProfile>false</useReleaseProfile>
-                    <releaseProfiles>release</releaseProfiles>
-                    <autoVersionSubmodules>true</autoVersionSubmodules>
-                </configuration>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+
+            <!-- Attach Javadoc to release -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+
+            <!-- Attach sources to release -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
 
+    <profiles>
+        <profile>
+            <id>ossrh</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.sonatype.plugins</groupId>
+                        <artifactId>nexus-staging-maven-plugin</artifactId>
+                        <version>${nexus-staging-maven-plugin.version}</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <serverId>ossrh</serverId>
+                            <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                            <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>${maven-gpg-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+    
     <!-- Push binary to JCenter -->
     <distributionManagement>
         <repository>
