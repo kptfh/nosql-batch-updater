@@ -5,6 +5,6 @@ This library allows to use batch updates on any NoSql (Key-Value) DB.
 
 Known limitations:
 - updates should be idempotent
-- size of batch depends on max size of record NoSql DB can store
+- size of batch depends on max size of record WriteAheadLog can store
 
 As for now it supports Aerospike batch updates only
