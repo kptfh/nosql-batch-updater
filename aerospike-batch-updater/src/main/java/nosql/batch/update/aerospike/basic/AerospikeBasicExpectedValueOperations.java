@@ -2,12 +2,13 @@ package nosql.batch.update.aerospike.basic;
 
 import com.aerospike.client.BatchRead;
 import com.aerospike.client.Bin;
-import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Value;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.aerospike.lock.AerospikeExpectedValuesOperations;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.lock.Lock;
 import nosql.batch.update.lock.PermanentLockingException;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,14 +16,14 @@ import java.util.List;
 
 public class AerospikeBasicExpectedValueOperations implements AerospikeExpectedValuesOperations<List<Record>> {
 
-    private final IAerospikeClient client;
+    private final IAerospikeReactorClient client;
 
-    public AerospikeBasicExpectedValueOperations(IAerospikeClient client) {
+    public AerospikeBasicExpectedValueOperations(IAerospikeReactorClient client) {
         this.client = client;
     }
 
     @Override
-    public void checkExpectedValues(List<AerospikeLock> locks, List<Record> expectedValues) throws PermanentLockingException {
+    public Mono<Void> checkExpectedValues(List<AerospikeLock> locks, List<Record> expectedValues) throws PermanentLockingException {
 
         if(locks.size() != expectedValues.size()){
             throw new IllegalArgumentException("locks.size() != expectedValues.size()");
@@ -41,11 +42,15 @@ public class AerospikeBasicExpectedValueOperations implements AerospikeExpectedV
             expectedValuesToCheck.add(record);
         }
 
-        client.get(null, batchReads);
+        return client.get(null, batchReads)
+                .doOnNext(batchReadResult -> {
+                    for(int i = 0, n = expectedValuesToCheck.size(); i < n; i++){
+                        checkValues(batchReads.get(i), expectedValuesToCheck.get(i));
+                    }
+                })
+                .then();
 
-        for(int i = 0, n = expectedValuesToCheck.size(); i < n; i++){
-            checkValues(batchReads.get(i), expectedValuesToCheck.get(i));
-        }
+
     }
 
     private void checkValues(BatchRead batchRead, Record expectedValues) throws PermanentLockingException {

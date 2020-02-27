@@ -1,5 +1,7 @@
 package nosql.batch.update;
 
+import reactor.core.publisher.Mono;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static nosql.batch.update.util.HangingUtil.hang;
@@ -17,14 +19,14 @@ abstract public class HangingUpdateOperations<UPDATES> implements UpdateOperatio
     abstract protected UPDATES selectFlakingToUpdate(UPDATES batchOfUpdates);
 
     @Override
-    public void updateMany(UPDATES batchOfUpdates) {
+    public Mono<Void> updateMany(UPDATES batchOfUpdates) {
         if(hangUpdate.get()){
             UPDATES partialUpdate = selectFlakingToUpdate(batchOfUpdates);
-            updateOperations.updateMany(partialUpdate);
-            hang();
+            return updateOperations.updateMany(partialUpdate)
+                    .then(hang());
         }
         else {
-            updateOperations.updateMany(batchOfUpdates);
+            return updateOperations.updateMany(batchOfUpdates);
         }
     }
 

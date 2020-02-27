@@ -16,8 +16,8 @@ import nosql.batch.update.wal.WriteAheadLogManager;
 
 import java.time.Clock;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static nosql.batch.update.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicWalManager;
@@ -33,20 +33,20 @@ public class BasicFailingOperationsUtil {
             AtomicBoolean failsCheckValue,
             AtomicBoolean failsUpdate,
             AtomicBoolean failsRelease,
-            AtomicBoolean failsDeleteWal){
+            AtomicBoolean failsDeleteWal,
+            AtomicInteger deletesInProcess){
 
         LockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> lockOperations
-                = new AerospikeBasicFailingLockOperations(client, reactorClient,
-                new AerospikeBasicExpectedValueOperations(client),
-                Executors.newFixedThreadPool(4),
+                = new AerospikeBasicFailingLockOperations(reactorClient,
+                new AerospikeBasicExpectedValueOperations(reactorClient),
                 failsAcquire, failsCheckValue, failsRelease);
 
         UpdateOperations<List<Record>> updateOperations =
-                failingUpdates(new AerospikeBasicUpdateOperations(client), failsUpdate);
+                failingUpdates(new AerospikeBasicUpdateOperations(reactorClient), failsUpdate);
 
         WriteAheadLogManager<AerospikeBasicBatchLocks, List<Record>, Value> walManager
                 = failingWal(basicWalManager(client, reactorClient, AEROSPIKE_PROPERTIES.getNamespace(), "wal", clock),
-                failsDeleteWal);
+                failsDeleteWal, deletesInProcess);
 
         return new BatchOperations<>(walManager, lockOperations, updateOperations);
     }

@@ -1,11 +1,12 @@
 package nosql.batch.update.aerospike.lock;
 
 import nosql.batch.update.lock.PermanentLockingException;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
 public interface AerospikeExpectedValuesOperations<EV>{
 
-    void checkExpectedValues(List<AerospikeLock> locks, EV expectedValues) throws PermanentLockingException;
+    Mono<Void> checkExpectedValues(List<AerospikeLock> locks, EV expectedValues) throws PermanentLockingException;
 
 }

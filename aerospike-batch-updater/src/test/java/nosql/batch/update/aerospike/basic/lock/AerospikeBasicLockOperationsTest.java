@@ -14,7 +14,6 @@ import org.testcontainers.containers.GenericContainer;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -44,7 +43,7 @@ public class AerospikeBasicLockOperationsTest
     AerospikeBasicBatchLocks locks2 = new AerospikeBasicBatchLocks(asList(record(key3, null), record(key4, null)));
 
     public AerospikeBasicLockOperationsTest() {
-        super(basicLockOperations(client, reactorClient, Executors.newFixedThreadPool(4)));
+        super(basicLockOperations(reactorClient));
     }
 
     @Override

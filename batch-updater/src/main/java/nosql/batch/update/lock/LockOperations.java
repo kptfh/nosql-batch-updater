@@ -4,7 +4,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 public interface LockOperations<LOCKS, L extends Lock, BATCH_ID> {
 
@@ -17,11 +17,11 @@ public interface LockOperations<LOCKS, L extends Lock, BATCH_ID> {
      * @param onErrorCleaner In case we were not able to get all locks we should clean(unlock) them
      * @return
      */
-    List<L> acquire(BATCH_ID batchId,
+    Mono<List<L>> acquire(BATCH_ID batchId,
                     LOCKS locks, boolean checkBatchId,
-                    Consumer<Collection<L>> onErrorCleaner) throws LockingException;
+                    Function<LOCKS, Mono<Void>> onErrorCleaner) throws LockingException;
 
-    List<L> getLockedByBatchUpdate(LOCKS locks, BATCH_ID batchId);
+    Mono<List<L>> getLockedByBatchUpdate(LOCKS locks, BATCH_ID batchId);
 
     Mono<Void> release(Collection<L> locks, BATCH_ID batchId);
 }

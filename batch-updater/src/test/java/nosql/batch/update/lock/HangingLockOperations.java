@@ -5,7 +5,7 @@ import reactor.core.publisher.Mono;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static nosql.batch.update.util.HangingUtil.hang;
 
@@ -26,20 +26,20 @@ abstract public class HangingLockOperations<LOCKS, L extends Lock, BATCH_ID> imp
     abstract protected Collection<L> selectFlakingToRelease(Collection<L> locks);
 
     @Override
-    public List<L> acquire(BATCH_ID batchId, LOCKS locks, boolean checkTransactionId, Consumer<Collection<L>> onErrorCleaner) throws LockingException {
+    public Mono<List<L>> acquire(BATCH_ID batchId, LOCKS locks, boolean checkTransactionId,
+                                 Function<LOCKS, Mono<Void>> onErrorCleaner) throws LockingException {
         if(failsAcquire.get()) {
             LOCKS partialLocks = selectFlakingToAcquire(locks);
 
-            lockOperations.acquire(batchId, partialLocks, checkTransactionId, onErrorCleaner);
-
-            return hang();
+            return lockOperations.acquire(batchId, partialLocks, checkTransactionId, onErrorCleaner)
+                    .then(hang());
         } else {
             return lockOperations.acquire(batchId, locks, checkTransactionId, onErrorCleaner);
         }
     }
 
     @Override
-    public List<L> getLockedByBatchUpdate(LOCKS locks, BATCH_ID batchId) {
+    public Mono<List<L>> getLockedByBatchUpdate(LOCKS locks, BATCH_ID batchId) {
         return lockOperations.getLockedByBatchUpdate(locks, batchId);
     }
 
@@ -48,7 +48,7 @@ abstract public class HangingLockOperations<LOCKS, L extends Lock, BATCH_ID> imp
         if(failsRelease.get()){
             Collection<L> partialLocks = selectFlakingToRelease(locks);
             return lockOperations.release(partialLocks, batchId)
-                    .then(Mono.just(hang()));
+                    .then(hang());
         } else {
             return lockOperations.release(locks, batchId);
         }

@@ -2,6 +2,7 @@ package nosql.batch.update;
 
 import nosql.batch.update.lock.Lock;
 import nosql.batch.update.wal.WriteAheadLogManager;
+import reactor.core.publisher.Mono;
 
 /**
  * Used to run batch updates on NoSql storage. Initially it was developed for Aerospike but may be implemented for any.
@@ -37,10 +38,9 @@ public class BatchUpdater<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         this.writeAheadLogManager = batchOperations.getWriteAheadLogManager();
     }
 
-    public void update(BatchUpdate<LOCKS, UPDATES> batchUpdate) {
-        BATCH_ID batchId = writeAheadLogManager.writeBatch(batchUpdate);
-
-        batchOperations.processAndDeleteTransaction(batchId, batchUpdate, false);
+    public Mono<Void> update(BatchUpdate<LOCKS, UPDATES> batchUpdate) {
+        return writeAheadLogManager.writeBatch(batchUpdate)
+                .flatMap(batchId -> batchOperations.processAndDeleteTransaction(batchId, batchUpdate, false));
     }
 
 }

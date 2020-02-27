@@ -41,7 +41,7 @@ public class BasicBatchRetentionTest extends BatchRetentionTest {
 
     static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations
             = failingOperations(client, reactorClient, clock,
-            failsAcquireLock, failsCheckValue, failsMutate, failsReleaseLock, failsDeleteBatch);
+            failsAcquireLock, failsCheckValue, failsMutate, failsReleaseLock, failsDeleteBatch, deletesInProcess);
 
     static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater
             = new BatchUpdater<>(operations);

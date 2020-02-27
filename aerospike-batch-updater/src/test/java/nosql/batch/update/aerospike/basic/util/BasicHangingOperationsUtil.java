@@ -14,7 +14,6 @@ import nosql.batch.update.wal.WriteAheadLogManager;
 
 import java.time.Clock;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static nosql.batch.update.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
@@ -35,11 +34,11 @@ public class BasicHangingOperationsUtil {
             AtomicBoolean hangsDeleteWal){
 
         LockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> lockOperations
-                = hangingLocks(basicLockOperations(client, reactorClient, Executors.newFixedThreadPool(4)),
+                = hangingLocks(basicLockOperations(reactorClient),
                 hangsAcquire, hangsRelease);
 
         UpdateOperations<List<Record>> updateOperations =
-                hangingUpdates(new AerospikeBasicUpdateOperations(client), hangsUpdate);
+                hangingUpdates(new AerospikeBasicUpdateOperations(reactorClient), hangsUpdate);
 
         WriteAheadLogManager<AerospikeBasicBatchLocks, List<Record>, Value> walManager
                 = hangingWal(basicWalManager(client, reactorClient, AEROSPIKE_PROPERTIES.getNamespace(), "wal", clock),

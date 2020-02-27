@@ -5,6 +5,7 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static nosql.batch.update.util.HangingUtil.hanged;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,14 +48,17 @@ abstract public class RecoveryTest {
     public void shouldBecameConsistentAfterReleaseLockHanged() throws InterruptedException {
         shouldBecameConsistentAfterHangAndCompletion(
                 () -> hangsRelease.set(true),
-                completionStatisticAssertion(1, 1, 0));
+                completionStatisticAssertion(1));
     }
 
     @Test
     public void shouldBecameConsistentAfterDeleteTransactionHanged() throws InterruptedException {
         shouldBecameConsistentAfterHangAndCompletion(
                 () -> hangsDeleteBatchInWal.set(true),
-                completionStatisticAssertion(1, 0, 1));
+                completionStatisticAssertion(
+                        staleBatchesFound -> staleBatchesFound >= 1,
+                        staleBatchesComplete -> staleBatchesComplete == 0,
+                        staleBatchesIgnored -> staleBatchesIgnored >= 1));
     }
 
     protected void shouldBecameConsistentAfterHangAndCompletion(
@@ -68,7 +72,9 @@ abstract public class RecoveryTest {
 
             new Thread(this::runUpdate).start();
 
-            await().timeout(ONE_MINUTE).until(hanged::get);
+            await().dontCatchUncaughtExceptions()
+                    .timeout(ONE_MINUTE)
+                    .until(hanged::get);
 
             fixAll();
 
@@ -94,6 +100,15 @@ abstract public class RecoveryTest {
             assertThat(completionStatistic.staleBatchesFound).isEqualTo(staleBatchesFound);
             assertThat(completionStatistic.staleBatchesComplete).isEqualTo(staleBatchesComplete);
             assertThat(completionStatistic.staleBatchesIgnored).isEqualTo(staleBatchesIgnored);
+        };
+    }
+
+    static Consumer<CompletionStatistic> completionStatisticAssertion(
+            Predicate<Integer> staleBatchesFound, Predicate<Integer> staleBatchesComplete, Predicate<Integer> staleBatchesIgnored){
+        return completionStatistic -> {
+            assertThat(completionStatistic.staleBatchesFound).matches(staleBatchesFound);
+            assertThat(completionStatistic.staleBatchesComplete).matches(staleBatchesComplete);
+            assertThat(completionStatistic.staleBatchesIgnored).matches(staleBatchesIgnored);
         };
     }
 
