@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> {
 
-    BATCH_ID writeBatch(BatchUpdate<LOCKS, UPDATES> batch);
+    Mono<BATCH_ID> writeBatch(BatchUpdate<LOCKS, UPDATES> batch);
 
     Mono<Void> deleteBatch(BATCH_ID batchId);
 

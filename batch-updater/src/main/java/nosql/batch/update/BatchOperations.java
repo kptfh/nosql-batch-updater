@@ -3,9 +3,9 @@ package nosql.batch.update;
 import nosql.batch.update.lock.Lock;
 import nosql.batch.update.lock.LockOperations;
 import nosql.batch.update.wal.WriteAheadLogManager;
+import reactor.core.publisher.Mono;
 
 import java.util.Collection;
-import java.util.List;
 
 public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
 
@@ -21,22 +21,22 @@ public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         this.updateOperations = updateOperations;
     }
 
-    public void processAndDeleteTransaction(BATCH_ID batchId, BatchUpdate<LOCKS, UPDATES> batchUpdate, boolean checkTransactionId) {
-        List<L> locked = lockOperations.acquire(batchId, batchUpdate.locks(), checkTransactionId,
-                locksToRelease -> releaseLocksAndDeleteWalTransaction(locksToRelease, batchId));
-
-        updateOperations.updateMany(batchUpdate.updates());
-        releaseLocksAndDeleteWalTransaction(locked, batchId);
+    public Mono<Void> processAndDeleteTransaction(BATCH_ID batchId, BatchUpdate<LOCKS, UPDATES> batchUpdate, boolean checkTransactionId) {
+        return lockOperations.acquire(batchId, batchUpdate.locks(), checkTransactionId,
+                locksToRelease -> releaseLocksAndDeleteWalTransactionOnError(batchUpdate.locks(), batchId))
+                .flatMap(locked -> updateOperations.updateMany(batchUpdate.updates())
+                        .then(releaseLocksAndDeleteWalTransaction(locked, batchId)));
     }
 
-    private void releaseLocksAndDeleteWalTransaction(Collection<L> locks, BATCH_ID batchId) {
-        lockOperations.release(locks, batchId).block();
-        writeAheadLogManager.deleteBatch(batchId).block();
+    private Mono<Void> releaseLocksAndDeleteWalTransaction(Collection<L> locks, BATCH_ID batchId) {
+        return lockOperations.release(locks, batchId)
+                //here we use fire&forget to reduce response time
+                .doOnSuccess(aVoid -> writeAheadLogManager.deleteBatch(batchId).subscribe());
     }
 
-    public void releaseLocksAndDeleteWalTransactionOnError(LOCKS locks, BATCH_ID batchId) {
-        List<L> transactionLockKeys = lockOperations.getLockedByBatchUpdate(locks, batchId);
-        releaseLocksAndDeleteWalTransaction(transactionLockKeys, batchId);
+    public Mono<Void> releaseLocksAndDeleteWalTransactionOnError(LOCKS locks, BATCH_ID batchId) {
+        return lockOperations.getLockedByBatchUpdate(locks, batchId)
+                .flatMap(transactionLockKeys -> releaseLocksAndDeleteWalTransaction(transactionLockKeys, batchId));
     }
 
     public WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> getWriteAheadLogManager() {

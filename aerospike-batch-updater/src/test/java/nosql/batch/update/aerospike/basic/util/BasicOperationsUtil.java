@@ -10,7 +10,6 @@ import nosql.batch.update.aerospike.lock.AerospikeLock;
 
 import java.time.Clock;
 import java.util.List;
-import java.util.concurrent.Executors;
 
 import static nosql.batch.update.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicOperations;
@@ -22,8 +21,7 @@ public class BasicOperationsUtil {
         return basicOperations(
                 client, reactorClient,
                 AEROSPIKE_PROPERTIES.getNamespace(), "wal",
-                clock,
-                Executors.newFixedThreadPool(4));
+                clock);
     }
 
 }

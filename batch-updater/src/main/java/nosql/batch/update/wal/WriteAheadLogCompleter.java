@@ -110,7 +110,7 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
                         LOCKS locks = batch.batchUpdate.locks();
                         try {
                             batchOperations.processAndDeleteTransaction(
-                                    batch.batchId, batch.batchUpdate, true);
+                                    batch.batchId, batch.batchUpdate, true).block();
                             completeBatchesCount++;
                             logger.info("Successfully complete transaction txId=[{}]", batch.batchId);
                         }
@@ -120,7 +120,7 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
                         catch (LockingException be) {
                             logger.info("Failed to complete transaction txId=[{}] as it's already completed", batch.batchId, be);
                             batchOperations.releaseLocksAndDeleteWalTransactionOnError(
-                                    locks, batch.batchId);
+                                    locks, batch.batchId).block();
                             ignoredBatchesCount ++;
                             logger.info("released locks for transaction txId=[{}]", batch.batchId, be);
                         }

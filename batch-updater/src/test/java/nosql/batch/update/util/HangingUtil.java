@@ -1,8 +1,12 @@
 package nosql.batch.update.util;
 
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -24,14 +28,10 @@ public class HangingUtil {
                 .collect(Collectors.toList());
     }
 
-    public static <V> V hang() {
-        hanged.set(true);
-        while(true){
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
+    public static <V> Mono<V> hang() {
+        return Mono.defer(() -> {
+            hanged.set(true);
+            return Mono.fromFuture(new CompletableFuture<V>());
+        }).publishOn(Schedulers.elastic());
     }
 }

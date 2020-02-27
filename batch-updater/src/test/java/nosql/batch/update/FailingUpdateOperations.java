@@ -1,5 +1,7 @@
 package nosql.batch.update;
 
+import reactor.core.publisher.Mono;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 abstract public class FailingUpdateOperations<UPDATES> implements UpdateOperations<UPDATES>{
@@ -15,14 +17,14 @@ abstract public class FailingUpdateOperations<UPDATES> implements UpdateOperatio
     abstract protected UPDATES selectFlakingToUpdate(UPDATES batchOfUpdates);
 
     @Override
-    public void updateMany(UPDATES batchOfUpdates) {
+    public Mono<Void> updateMany(UPDATES batchOfUpdates) {
         if(failsUpdate.get()){
             UPDATES partialUpdate = selectFlakingToUpdate(batchOfUpdates);
-            updateOperations.updateMany(partialUpdate);
-            throw new RuntimeException();
+            return updateOperations.updateMany(partialUpdate)
+                    .then(Mono.error(new RuntimeException()));
         }
         else {
-            updateOperations.updateMany(batchOfUpdates);
+            return updateOperations.updateMany(batchOfUpdates);
         }
     }
 

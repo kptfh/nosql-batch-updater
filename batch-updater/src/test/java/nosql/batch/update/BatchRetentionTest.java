@@ -1,9 +1,12 @@
 package nosql.batch.update;
 
 import nosql.batch.update.wal.CompletionStatistic;
+import org.awaitility.Awaitility;
+import org.awaitility.Duration;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static nosql.batch.update.RecoveryTest.completionStatisticAssertion;
@@ -27,11 +30,12 @@ abstract public class BatchRetentionTest {
     protected static final AtomicBoolean failsMutate = new AtomicBoolean();
     protected static final AtomicBoolean failsReleaseLock = new AtomicBoolean();
     protected static final AtomicBoolean failsDeleteBatch = new AtomicBoolean();
+    protected static final AtomicInteger deletesInProcess = new AtomicInteger();
 
     @Test
     public void shouldKeepConsistencyIfAcquireFailed() throws InterruptedException {
         shouldBecameConsistentAfterFailAndCompletion(() -> failsAcquireLock.set(true), RuntimeException.class,
-                completionStatisticAssertion(0, 0, 0));
+                completionStatisticAssertion(1, 1, 0));
     }
 
     @Test
@@ -70,6 +74,8 @@ abstract public class BatchRetentionTest {
 
             assertThatThrownBy(this::runUpdate)
                     .isInstanceOf(expectedException);
+
+            Awaitility.waitAtMost(Duration.ONE_SECOND).until(() -> deletesInProcess.get() == 0);
 
             fixAll();
 

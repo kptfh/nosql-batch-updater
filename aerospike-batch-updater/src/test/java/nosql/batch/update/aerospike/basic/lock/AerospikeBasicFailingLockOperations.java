@@ -1,6 +1,5 @@
 package nosql.batch.update.aerospike.basic.lock;
 
-import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.Value;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.aerospike.basic.Record;
@@ -10,13 +9,13 @@ import nosql.batch.update.aerospike.lock.AerospikeLockOperations;
 import nosql.batch.update.lock.LockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static nosql.batch.update.util.HangingUtil.selectFlaking;
 
@@ -29,43 +28,42 @@ public class AerospikeBasicFailingLockOperations
     private final AtomicBoolean failsCheckValue;
     private final AtomicBoolean failsRelease;
 
-    public AerospikeBasicFailingLockOperations(IAerospikeClient client,
-                                               IAerospikeReactorClient reactorClient,
+    public AerospikeBasicFailingLockOperations(IAerospikeReactorClient reactorClient,
                                                AerospikeExpectedValuesOperations<List<Record>> expectedValuesOperations,
-                                               ExecutorService executorService,
                                                AtomicBoolean failsAcquire,
                                                AtomicBoolean failsCheckValue,
                                                AtomicBoolean failsRelease) {
-        super(client, reactorClient, expectedValuesOperations, executorService);
+        super(reactorClient, expectedValuesOperations);
         this.failsAcquire = failsAcquire;
         this.failsCheckValue = failsCheckValue;
         this.failsRelease = failsRelease;
     }
 
     @Override
-    protected List<AerospikeLock> putLocks(
+    protected Mono<List<AerospikeLock>> putLocks(
             Value batchId,
             AerospikeBasicBatchLocks batchLocks,
             boolean checkTransactionId,
-            Consumer<Collection<AerospikeLock>> onErrorCleanup) throws LockingException {
+            Function<AerospikeBasicBatchLocks, Mono<Void>> onErrorCleanup) throws LockingException {
         if(failsAcquire.get()){
             List<Record> recordsSelected = selectFlaking(batchLocks.expectedValues(),
                     key -> logger.info("acquire locks failed flaking for key [{}]", key));
 
             return super.putLocks(batchId,
                     new AerospikeBasicBatchLocks(recordsSelected),
-                    checkTransactionId, onErrorCleanup);
+                    checkTransactionId, onErrorCleanup)
+                    .then(Mono.error(Exceptions.propagate(new RuntimeException())));
         } else {
             return super.putLocks(batchId, batchLocks, checkTransactionId, onErrorCleanup);
         }
     }
 
     @Override
-    protected void checkExpectedValues(AerospikeBasicBatchLocks batchLocks, List<AerospikeLock> keysLocked) {
+    protected Mono<Void> checkExpectedValues(AerospikeBasicBatchLocks batchLocks, List<AerospikeLock> keysLocked) {
         if(failsCheckValue.get()){
-            throw new RuntimeException();
+            return Mono.error(new RuntimeException());
         } else {
-            super.checkExpectedValues(batchLocks, keysLocked);
+            return super.checkExpectedValues(batchLocks, keysLocked);
         }
     }
 

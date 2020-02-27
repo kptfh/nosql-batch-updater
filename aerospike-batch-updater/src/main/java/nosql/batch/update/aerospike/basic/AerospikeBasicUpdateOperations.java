@@ -1,35 +1,33 @@
 package nosql.batch.update.aerospike.basic;
 
 import com.aerospike.client.Bin;
-import com.aerospike.client.IAerospikeClient;
 import com.aerospike.client.policy.WritePolicy;
+import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.UpdateOperations;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-
-import static java.util.concurrent.CompletableFuture.allOf;
-import static java.util.concurrent.CompletableFuture.runAsync;
 
 public class AerospikeBasicUpdateOperations implements UpdateOperations<List<Record>> {
 
-    private final IAerospikeClient client;
+    private final IAerospikeReactorClient client;
     private final WritePolicy writePolicy;
 
-    public AerospikeBasicUpdateOperations(IAerospikeClient client) {
+    public AerospikeBasicUpdateOperations(IAerospikeReactorClient client) {
         this.client = client;
         this.writePolicy = client.getWritePolicyDefault();
     }
 
     @Override
-    public void updateMany(List<Record> batchOfUpdates) {
-        allOf(batchOfUpdates.stream()
-                .map(record -> runAsync(() -> update(record)))
-                .toArray(CompletableFuture[]::new)).join();
+    public Mono<Void> updateMany(List<Record> batchOfUpdates) {
+        return Flux.fromIterable(batchOfUpdates)
+                .flatMap(this::update)
+                .then();
+   }
 
-    }
-
-    private void update(Record record){
-        client.put(writePolicy, record.key, record.bins.toArray(new Bin[0]));
+    private Mono<Void> update(Record record){
+        return client.put(writePolicy, record.key, record.bins.toArray(new Bin[0]))
+                .then();
     }
 }

@@ -73,7 +73,7 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
     }
 
     @Override
-    public Value writeBatch(BatchUpdate<LOCKS, UPDATES> batch) {
+    public Mono<Value> writeBatch(BatchUpdate<LOCKS, UPDATES> batch) {
         Value batchId = generateBatchId();
 
         List<Bin> batchBins = batchSerializer.write(batch);
@@ -82,19 +82,17 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
         bins.add(new Bin(UUID_BIN_NAME, batchId));
         bins.add(new Bin(TIMESTAMP_BIN_NAME, Value.get(clock.millis())));
 
-        try {
-            client.put(writePolicy,
-                    new Key(walNamespace, walSetName, batchId),
-                    bins.toArray(new Bin[0]));
-            logger.trace("added batch to wal: {}", batchId);
-        } catch (AerospikeException ae) {
-            if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG){
-                logger.error("update data size to big: {}", batchBins.stream().mapToInt(bin -> bin.value.estimateSize()).sum());
-            }
-            throw ae;
-        }
-
-        return batchId;
+        return reactorClient.put(writePolicy,
+                new Key(walNamespace, walSetName, batchId),
+                bins.toArray(new Bin[0]))
+                .doOnNext(key -> logger.trace("added batch to wal: {}", batchId))
+                .onErrorMap(AerospikeException.class, ae -> {
+                    if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG){
+                        logger.error("update data size to big: {}", batchBins.stream().mapToInt(bin -> bin.value.estimateSize()).sum());
+                    }
+                    return ae;
+                })
+                .then(Mono.just(batchId));
     }
 
     public static Value generateBatchId() {
@@ -103,12 +101,9 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
 
     @Override
     public Mono<Void> deleteBatch(Value batchId) {
-        client.delete(deletePolicy, new Key(walNamespace, walSetName, batchId));
-        logger.trace("removed batch from wal: {}", batchId);
-//        return reactorClient.delete(deletePolicy, new Key(walNamespace, walSetName, batchId))
-//                .doOnNext(key -> logger.trace("removed batch from wal: {}", batchId))
-//                .then();
-        return Mono.just(1).then();
+        return reactorClient.delete(deletePolicy, new Key(walNamespace, walSetName, batchId))
+                .doOnNext(key -> logger.trace("removed batch from wal: {}", batchId))
+                .then();
     }
 
     @Override

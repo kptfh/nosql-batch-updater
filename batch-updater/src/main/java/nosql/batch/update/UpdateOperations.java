@@ -1,6 +1,8 @@
 package nosql.batch.update;
 
+import reactor.core.publisher.Mono;
+
 public interface UpdateOperations<UPDATES> {
 
-    void updateMany(UPDATES batchOfUpdates);
+    Mono<Void> updateMany(UPDATES batchOfUpdates);
 }

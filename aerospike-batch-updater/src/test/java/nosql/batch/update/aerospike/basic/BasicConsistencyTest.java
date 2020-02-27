@@ -14,6 +14,7 @@ import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.lock.LockingException;
 import org.junit.Test;
 import org.testcontainers.containers.GenericContainer;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Clock;
 import java.util.List;
@@ -40,8 +41,7 @@ public class BasicConsistencyTest {
     static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations = basicOperations(
             client, reactorClient,
             AEROSPIKE_PROPERTIES.getNamespace(), "wal",
-            Clock.systemUTC(),
-            Executors.newFixedThreadPool(4));
+            Clock.systemUTC());
 
     static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
 
@@ -101,7 +101,8 @@ public class BasicConsistencyTest {
                         record(key2, value2))),
                 asList(
                         record(key1, (value1 != null ? value1 : 0) + 1),
-                        record(key2, (value2 != null ? value2 : 0) + 1))));
+                        record(key2, (value2 != null ? value2 : 0) + 1))))
+                .block();
     }
 
     public static Record record(Key key, Long value) {
