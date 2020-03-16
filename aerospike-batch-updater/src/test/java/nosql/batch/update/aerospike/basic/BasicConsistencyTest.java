@@ -87,7 +87,7 @@ public class BasicConsistencyTest {
                 exceptionsCount.incrementAndGet();
                 i--;
                 try {
-                    Thread.sleep(random.nextInt(100));
+                    Thread.sleep(random.nextInt(25));
                 } catch (InterruptedException e1) {
                     throw new RuntimeException(e1);
                 }

@@ -15,6 +15,7 @@ import nosql.batch.update.lock.PermanentLockingException;
 import nosql.batch.update.lock.TemporaryLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -74,17 +75,29 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
             Function<LOCKS, Mono<Void>> onErrorCleanup) throws LockingException {
 
         return Flux.fromIterable(batchLocks.keysToLock())
-                .flatMap(lockKey -> putLock(batchId, lockKey, checkTransactionId))
-                .onErrorResume(throwable ->
-                        onErrorCleanup.apply(batchLocks)
-                                .then(Mono.error(() -> {
-                                    if(throwable instanceof LockingException){
-                                        return throwable;
-                                    } else {
-                                        return new PermanentLockingException(throwable);
-                                    }
-                                })))
-                .collectList();
+                .flatMap(lockKey -> putLock(batchId, lockKey, checkTransactionId)
+                        .map(aerospikeLock -> new LockResult<>(aerospikeLock))
+                        .onErrorResume(throwable -> Mono.just(new LockResult<>(throwable))))
+                .collectList()
+                .flatMap(lockResults -> processResults(batchLocks, onErrorCleanup, lockResults));
+    }
+
+    private Mono<? extends List<AerospikeLock>> processResults(LOCKS batchLocks, Function<LOCKS, Mono<Void>> onErrorCleanup, List<LockResult<AerospikeLock>> lockResults) {
+        List<AerospikeLock> locks = new ArrayList<>(lockResults.size());
+        for(LockResult<AerospikeLock> lockResult : lockResults){
+            if(lockResult.throwable != null){
+                return onErrorCleanup.apply(batchLocks)
+                        .then(Mono.error(() -> {
+                            if(lockResult.throwable instanceof LockingException){
+                                throw Exceptions.propagate(lockResult.throwable);
+                            } else {
+                                throw Exceptions.propagate(new PermanentLockingException(lockResult.throwable));
+                            }
+                        }));
+            }
+            locks.add(lockResult.value);
+        }
+        return Mono.just(locks);
     }
 
     private Mono<AerospikeLock> putLock(Value batchId, Key lockKey, boolean checkBatchId) {
@@ -112,13 +125,14 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
                                                     lockKey, batchId)));
                                         }
                                     });
-
                         } else {
                             return getBatchIdOfLock(lockKey)
                                     .flatMap(batchIdLocked -> {
-                                        logger.info("Locked by concurrent update key=[{}], batchId=[{}]", lockKey, batchIdLocked);
+                                        logger.info("Locked by concurrent update key=[{}], batchId=[{}], batchIdLocked=[{}]",
+                                                lockKey, batchId, batchIdLocked);
                                         return Mono.error(new TemporaryLockingException(String.format(
-                                                "Locked by concurrent update key=[%s], batchId=[%s]", lockKey, batchIdLocked)));
+                                                "Locked by concurrent update key=[%s], batchId=[%s], batchIdLocked=[%s]",
+                                                lockKey, batchId, batchIdLocked)));
                                     });
                         }
                     } else {
@@ -175,5 +189,21 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
                 )
                 .then();
     }
+
+    public static class LockResult<V> {
+        public final V value;
+        public final Throwable throwable;
+
+        public LockResult(V value) {
+            this.value = value;
+            this.throwable = null;
+        }
+
+        public LockResult(Throwable throwable) {
+            this.value = null;
+            this.throwable = throwable;
+        }
+    }
+
 
 }
