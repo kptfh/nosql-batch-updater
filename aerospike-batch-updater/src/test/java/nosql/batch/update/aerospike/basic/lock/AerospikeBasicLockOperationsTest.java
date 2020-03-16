@@ -6,6 +6,7 @@ import com.aerospike.client.Value;
 import com.aerospike.client.async.NioEventLoops;
 import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
+import nosql.batch.update.aerospike.basic.BasicConsistencyTest;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager;
 import nosql.batch.update.lock.LockOperationsTest;
@@ -32,11 +33,12 @@ public class AerospikeBasicLockOperationsTest
     static final AerospikeClient client = getAerospikeClient(aerospike, eventLoops);
     static final IAerospikeReactorClient reactorClient = new AerospikeReactorClient(client, eventLoops);
 
+    static String setName = String.valueOf(AerospikeBasicLockOperationsTest.class.hashCode());
     static AtomicInteger keyCounter = new AtomicInteger();
-    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
-    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
-    private Key key3 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
-    private Key key4 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key3 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key4 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
 
 
     AerospikeBasicBatchLocks locks1 = new AerospikeBasicBatchLocks(asList(record(key1, null), record(key2, null)));

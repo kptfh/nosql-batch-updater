@@ -54,9 +54,10 @@ public class BasicRecoveryTest extends RecoveryTest {
             new DummyExclusiveLocker(),
             Executors.newScheduledThreadPool(1));
 
+    static String setName = String.valueOf(BasicRecoveryTest.class.hashCode());
     static AtomicInteger keyCounter = new AtomicInteger();
-    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
-    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
 
     @Override
     protected void runUpdate() {

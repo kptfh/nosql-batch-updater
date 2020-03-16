@@ -25,8 +25,6 @@ package com.aerospike;
 
 public class AerospikeProperties {
 
-    static final String AEROSPIKE_BEAN_NAME = "aerospike";
-
     boolean enabled = true;
     String dockerImage = "aerospike/aerospike-server:4.3.0.8";
     String namespace = "TEST";

@@ -13,6 +13,8 @@ import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.lock.LockingException;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import reactor.core.scheduler.Schedulers;
 
@@ -32,6 +34,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class BasicConsistencyTest {
 
+    private static final Logger logger = LoggerFactory.getLogger(BasicConsistencyTest.class);
+
     static final GenericContainer aerospike = getAerospikeContainer();
 
     static final NioEventLoops eventLoops = new NioEventLoops();
@@ -45,9 +49,10 @@ public class BasicConsistencyTest {
 
     static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
 
+    static String setName = String.valueOf(BasicConsistencyTest.class.hashCode());
     static AtomicInteger keyCounter = new AtomicInteger();
-    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
-    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
     static String BIN_NAME = "value";
 
     private AtomicInteger exceptionsCount = new AtomicInteger();
@@ -55,7 +60,7 @@ public class BasicConsistencyTest {
 
     @Test
     public void shouldUpdate() {
-        update();
+        update(key1, key2);
 
         assertThat((Long)client.get(null, key1).getValue(BIN_NAME)).isEqualTo(1000);
         assertThat((Long)client.get(null, key2).getValue(BIN_NAME)).isEqualTo(1000);
@@ -63,8 +68,8 @@ public class BasicConsistencyTest {
 
     @Test
     public void shouldUpdateConcurrently() throws ExecutionException, InterruptedException {
-        Future future1 = Executors.newFixedThreadPool(2).submit(this::update);
-        Future future2 = Executors.newFixedThreadPool(2).submit(this::update);
+        Future future1 = Executors.newFixedThreadPool(2).submit(() -> update(key1, key2));
+        Future future2 = Executors.newFixedThreadPool(2).submit(() -> update(key1, key2));
 
         future1.get();
         future2.get();
@@ -74,7 +79,7 @@ public class BasicConsistencyTest {
         assertThat(exceptionsCount.get()).isGreaterThan(0);
     }
 
-    private void update(){
+    private void update(Key key1, Key key2){
         for(int i = 0; i < 1000; i++){
             try {
                 incrementBoth(key1, key2, updater);
@@ -82,10 +87,12 @@ public class BasicConsistencyTest {
                 exceptionsCount.incrementAndGet();
                 i--;
                 try {
-                    Thread.sleep(random.nextInt(50));
+                    Thread.sleep(random.nextInt(100));
                 } catch (InterruptedException e1) {
                     throw new RuntimeException(e1);
                 }
+
+                logger.debug(e.getMessage());
             }
         }
     }
@@ -102,7 +109,9 @@ public class BasicConsistencyTest {
                 asList(
                         record(key1, (value1 != null ? value1 : 0) + 1),
                         record(key2, (value2 != null ? value2 : 0) + 1))))
+                .subscribeOn(Schedulers.parallel())
                 .block();
+        logger.debug("updated {} to {} and {} to {}", key1, value1, key2, value2);
     }
 
     public static Record record(Key key, Long value) {
