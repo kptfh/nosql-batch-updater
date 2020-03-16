@@ -1,6 +1,11 @@
 package nosql.batch.update.aerospike.lock;
 
-import com.aerospike.client.*;
+import com.aerospike.client.AerospikeException;
+import com.aerospike.client.Bin;
+import com.aerospike.client.Key;
+import com.aerospike.client.Record;
+import com.aerospike.client.ResultCode;
+import com.aerospike.client.Value;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
@@ -17,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static nosql.batch.update.lock.Lock.LockType.LOCKED;
 import static nosql.batch.update.lock.Lock.LockType.SAME_BATCH;
@@ -134,7 +138,10 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
     }
 
     private Value getBatchId(Record record) {
-        return Value.get(record.getValue(BATCH_ID_BIN_NAME));
+        return record != null
+                ? Value.get(record.getValue(BATCH_ID_BIN_NAME)) :
+                //may have place if key get unlocked before we get response
+                Value.getAsNull();
     }
 
     private Mono<Boolean> alreadyLockedByBatch(Key lockKey, Value batchId) {

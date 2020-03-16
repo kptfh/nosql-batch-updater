@@ -1,11 +1,9 @@
 package nosql.batch.update.wal;
 
 import nosql.batch.update.BatchUpdate;
-import nosql.batch.update.util.HangingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.List;

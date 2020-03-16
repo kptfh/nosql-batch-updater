@@ -55,8 +55,11 @@ public class BasicBatchRetentionTest extends BatchRetentionTest {
             Executors.newScheduledThreadPool(1));
 
     static AtomicInteger keyCounter = new AtomicInteger();
-    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
-    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), "testset", keyCounter.incrementAndGet());
+
+    static String setName = String.valueOf(BasicBatchRetentionTest.class.hashCode());
+
+    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
 
     @Override
     protected void runUpdate() {
