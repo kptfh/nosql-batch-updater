@@ -35,28 +35,35 @@ public class AerospikeExclusiveLocker implements ExclusiveLocker {
 
     private static final Value EXCLUSIVE_LOCK_KEY = Value.get((byte)0);
 
-    private static final Duration EXCLUSIVE_LOCK_TTL = Duration.ofSeconds(60);
-
     private final IAerospikeClient client;
+    private final Duration exclusiveLockTtl;
     private final ScheduledExecutorService scheduledExecutorService;
+
     private final WritePolicy putLockPolicy;
-    private final WritePolicy upgradeLockPolicy;
     private final Bin exclusiveLockBin;
     private final Key exclusiveLockKey;
     private final AtomicInteger generation = new AtomicInteger(0);
     private final AtomicReference<ScheduledFuture> scheduledFuture = new AtomicReference<>();
 
-    public AerospikeExclusiveLocker(IAerospikeClient client, String namespace, String setName) {
+    public AerospikeExclusiveLocker(
+            IAerospikeClient client, String namespace, String setName) {
+        this(client, namespace, setName,
+                Executors.newSingleThreadScheduledExecutor(),
+                Duration.ofSeconds(60));
+    }
+
+    public AerospikeExclusiveLocker(
+            IAerospikeClient client, String namespace, String setName,
+            ScheduledExecutorService scheduledExecutorService, Duration exclusiveLockTtl) {
         this.client = client;
+        this.exclusiveLockTtl = exclusiveLockTtl;
+        this.scheduledExecutorService = scheduledExecutorService;
 
         this.putLockPolicy = buildPutLockPolicy();
-        this.upgradeLockPolicy = buildTouchLockPolicy();
 
         this.exclusiveLockBin = new Bin("EL", getBytesFromUUID(UUID.randomUUID()));
 
         exclusiveLockKey = new Key(namespace, setName, EXCLUSIVE_LOCK_KEY);
-
-        scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     }
 
     @Override
@@ -71,8 +78,8 @@ public class AerospikeExclusiveLocker implements ExclusiveLocker {
             logger.info("Successfully got exclusive WAL lock");
 
             scheduledFuture.set(scheduledExecutorService.scheduleAtFixedRate(this::upgradeLock,
-                    EXCLUSIVE_LOCK_TTL.getSeconds() / 2,
-                    EXCLUSIVE_LOCK_TTL.getSeconds() / 2, TimeUnit.SECONDS));
+                    exclusiveLockTtl.getSeconds() / 2,
+                    exclusiveLockTtl.getSeconds() / 2, TimeUnit.SECONDS));
 
             return true;
         } catch (AerospikeException e){
@@ -92,32 +99,36 @@ public class AerospikeExclusiveLocker implements ExclusiveLocker {
     public void release() {
         if(generation.get() > 0){
             client.delete(null, exclusiveLockKey);
-            generation.set(0);
-
-            if(scheduledFuture.get() != null){
-                scheduledFuture.get().cancel(false);
-                scheduledFuture.set(null);
-            }
+            reset();
         }
     }
 
     private WritePolicy buildPutLockPolicy(){
         WritePolicy putLockPolicy = new WritePolicy();
         putLockPolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY;
-        putLockPolicy.expiration = (int) EXCLUSIVE_LOCK_TTL.get(SECONDS);
+        putLockPolicy.expiration = (int) exclusiveLockTtl.get(SECONDS);
         return putLockPolicy;
     }
 
     private void upgradeLock(){
         try {
-            client.touch(upgradeLockPolicy, exclusiveLockKey);
+            client.touch(buildTouchLockPolicy(), exclusiveLockKey);
             generation.incrementAndGet();
             logger.info("Successfully upgraded WAL lock");
         } catch (AerospikeException e){
             logger.error("Failed while upgrading WAL lock", e);
             //downgrade lock
-            generation.set(0);
+            reset();
             throw e;
+        }
+    }
+
+    private void reset(){
+        generation.set(0);
+
+        if(scheduledFuture.get() != null){
+            scheduledFuture.get().cancel(false);
+            scheduledFuture.set(null);
         }
     }
 
@@ -126,7 +137,7 @@ public class AerospikeExclusiveLocker implements ExclusiveLocker {
         touchLockPolicy.recordExistsAction = RecordExistsAction.UPDATE_ONLY;
         touchLockPolicy.generation = this.generation.get();
         touchLockPolicy.generationPolicy = GenerationPolicy.EXPECT_GEN_EQUAL;
-        touchLockPolicy.expiration = (int) EXCLUSIVE_LOCK_TTL.get(SECONDS);
+        touchLockPolicy.expiration = (int) exclusiveLockTtl.get(SECONDS);
         return touchLockPolicy;
     }
 

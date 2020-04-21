@@ -1,5 +1,6 @@
 package nosql.batch.update.wal;
 
+import org.junit.After;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,6 +10,11 @@ abstract public class ExclusiveLockerTest {
     abstract protected ExclusiveLocker getExclusiveLocker();
 
     private ExclusiveLocker exclusiveLocker = getExclusiveLocker();
+
+    @After
+    public void after(){
+        exclusiveLocker.shutdown();
+    }
 
     @Test
     public void shouldBeReentrant(){
@@ -26,8 +32,8 @@ abstract public class ExclusiveLockerTest {
         assertThat(exclusiveLocker2.acquire()).isFalse();
 
         exclusiveLocker.release();
+        exclusiveLocker2.shutdown();
     }
-
 
     @Test
     public void shouldLockAfterUnlock(){
@@ -38,7 +44,7 @@ abstract public class ExclusiveLockerTest {
         assertThat(exclusiveLocker2.acquire()).isTrue();
 
         exclusiveLocker2.release();
-
+        exclusiveLocker2.shutdown();
     }
 
 }
