@@ -55,6 +55,7 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
 
     public void shutdown(){
         shutdownAndAwaitTermination(scheduledExecutorService);
+        exclusiveLocker.release();
         exclusiveLocker.shutdown();
     }
 
