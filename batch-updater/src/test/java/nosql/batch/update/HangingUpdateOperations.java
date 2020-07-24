@@ -19,14 +19,14 @@ abstract public class HangingUpdateOperations<UPDATES> implements UpdateOperatio
     abstract protected UPDATES selectFlakingToUpdate(UPDATES batchOfUpdates);
 
     @Override
-    public Mono<Void> updateMany(UPDATES batchOfUpdates) {
+    public Mono<Void> updateMany(UPDATES batchOfUpdates, boolean calledByWal) {
         if(hangUpdate.get()){
             UPDATES partialUpdate = selectFlakingToUpdate(batchOfUpdates);
-            return updateOperations.updateMany(partialUpdate)
+            return updateOperations.updateMany(partialUpdate, calledByWal)
                     .then(hang());
         }
         else {
-            return updateOperations.updateMany(batchOfUpdates);
+            return updateOperations.updateMany(batchOfUpdates, calledByWal);
         }
     }
 

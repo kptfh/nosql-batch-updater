@@ -21,10 +21,10 @@ public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         this.updateOperations = updateOperations;
     }
 
-    public Mono<Void> processAndDeleteTransaction(BATCH_ID batchId, BatchUpdate<LOCKS, UPDATES> batchUpdate, boolean checkTransactionId) {
-        return lockOperations.acquire(batchId, batchUpdate.locks(), checkTransactionId,
+    public Mono<Void> processAndDeleteTransaction(BATCH_ID batchId, BatchUpdate<LOCKS, UPDATES> batchUpdate, boolean calledByWal) {
+        return lockOperations.acquire(batchId, batchUpdate.locks(), calledByWal,
                 locksToRelease -> releaseLocksAndDeleteWalTransactionOnError(batchUpdate.locks(), batchId))
-                .flatMap(locked -> updateOperations.updateMany(batchUpdate.updates())
+                .flatMap(locked -> updateOperations.updateMany(batchUpdate.updates(), calledByWal)
                         .then(releaseLocksAndDeleteWalTransaction(locked, batchId)));
     }
 
