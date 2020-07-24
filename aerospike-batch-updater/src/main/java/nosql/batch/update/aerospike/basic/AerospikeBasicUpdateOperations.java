@@ -20,7 +20,7 @@ public class AerospikeBasicUpdateOperations implements UpdateOperations<List<Rec
     }
 
     @Override
-    public Mono<Void> updateMany(List<Record> batchOfUpdates) {
+    public Mono<Void> updateMany(List<Record> batchOfUpdates, boolean calledByWal) {
         return Flux.fromIterable(batchOfUpdates)
                 .flatMap(this::update)
                 .then();

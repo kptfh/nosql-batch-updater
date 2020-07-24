@@ -17,14 +17,14 @@ abstract public class FailingUpdateOperations<UPDATES> implements UpdateOperatio
     abstract protected UPDATES selectFlakingToUpdate(UPDATES batchOfUpdates);
 
     @Override
-    public Mono<Void> updateMany(UPDATES batchOfUpdates) {
+    public Mono<Void> updateMany(UPDATES batchOfUpdates, boolean calledByWal) {
         if(failsUpdate.get()){
             UPDATES partialUpdate = selectFlakingToUpdate(batchOfUpdates);
-            return updateOperations.updateMany(partialUpdate)
+            return updateOperations.updateMany(partialUpdate, calledByWal)
                     .then(Mono.error(new RuntimeException()));
         }
         else {
-            return updateOperations.updateMany(batchOfUpdates);
+            return updateOperations.updateMany(batchOfUpdates, calledByWal);
         }
     }
 
