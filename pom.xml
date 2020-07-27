@@ -52,7 +52,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <aerospike-client.version>4.4.9</aerospike-client.version>
+        <aerospike-client.version>4.4.15</aerospike-client.version>
+        <aerospike-reactor-client.version>4.4.10</aerospike-reactor-client.version>
         <slf4j.version>1.7.25</slf4j.version>
 
         <!-- Tests -->
@@ -110,7 +111,7 @@
             <dependency>
                 <groupId>com.aerospike</groupId>
                 <artifactId>aerospike-reactor-client</artifactId>
-                <version>${aerospike-client.version}</version>
+                <version>${aerospike-reactor-client.version}</version>
                 <scope>provided</scope>
             </dependency>
 
