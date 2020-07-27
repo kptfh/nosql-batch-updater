@@ -18,7 +18,6 @@ abstract public class LockOperationsTest<LOCKS, L extends Lock, BATCH_ID> {
     }
 
     abstract protected LOCKS getLocks1();
-    abstract protected LOCKS getLocks2();
     abstract protected BATCH_ID generateBatchId();
     abstract protected void assertThatSameLockKeys(List<L> locks1, List<L> locks2);
 

@@ -42,7 +42,6 @@ public class AerospikeBasicLockOperationsTest
 
 
     AerospikeBasicBatchLocks locks1 = new AerospikeBasicBatchLocks(asList(record(key1, null), record(key2, null)));
-    AerospikeBasicBatchLocks locks2 = new AerospikeBasicBatchLocks(asList(record(key3, null), record(key4, null)));
 
     public AerospikeBasicLockOperationsTest() {
         super(basicLockOperations(reactorClient));
@@ -51,11 +50,6 @@ public class AerospikeBasicLockOperationsTest
     @Override
     protected AerospikeBasicBatchLocks getLocks1() {
         return locks1;
-    }
-
-    @Override
-    protected AerospikeBasicBatchLocks getLocks2() {
-        return locks2;
     }
 
     @Override
