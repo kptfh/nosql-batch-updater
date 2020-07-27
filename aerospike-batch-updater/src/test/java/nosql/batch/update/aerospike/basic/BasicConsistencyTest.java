@@ -32,7 +32,7 @@ import static nosql.batch.update.aerospike.AerospikeTestUtils.*;
 import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicOperations;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class BasicConsistencyTest {
+public class BasicConsistencyTest extends BaseReactorTest{
 
     private static final Logger logger = LoggerFactory.getLogger(BasicConsistencyTest.class);
 
