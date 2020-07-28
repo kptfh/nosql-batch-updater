@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -27,6 +28,7 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
 
     private final ExclusiveLocker exclusiveLocker;
     private final ScheduledExecutorService scheduledExecutorService;
+    private ScheduledFuture<?> scheduledFuture;
 
     private AtomicBoolean suspended = new AtomicBoolean(false);
 
@@ -47,13 +49,14 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
     }
 
     public void start(){
-        scheduledExecutorService.scheduleAtFixedRate(
+        scheduledFuture = scheduledExecutorService.scheduleAtFixedRate(
                 this::completeHangedTransactions,
                 //set period to be slightly longer then expiration
                 0, staleBatchesThreshold.toMillis() + 100, TimeUnit.MILLISECONDS);
     }
 
     public void shutdown(){
+        scheduledFuture.cancel(true);
         shutdownAndAwaitTermination(scheduledExecutorService);
         exclusiveLocker.release();
         exclusiveLocker.shutdown();
