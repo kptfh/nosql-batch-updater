@@ -1,6 +1,7 @@
 package nosql.batch.update.aerospike.basic;
 
 import com.aerospike.client.Bin;
+import com.aerospike.client.Key;
 import com.aerospike.client.policy.WritePolicy;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.UpdateOperations;
@@ -26,8 +27,7 @@ public class AerospikeBasicUpdateOperations implements UpdateOperations<List<Rec
                 .then();
    }
 
-    private Mono<Void> update(Record record){
-        return client.put(writePolicy, record.key, record.bins.toArray(new Bin[0]))
-                .then();
+    private Mono<Key> update(Record record){
+        return client.put(writePolicy, record.key, record.bins.toArray(new Bin[0]));
     }
 }

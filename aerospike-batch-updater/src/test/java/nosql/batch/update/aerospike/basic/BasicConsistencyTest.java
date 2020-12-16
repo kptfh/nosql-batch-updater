@@ -36,27 +36,27 @@ public class BasicConsistencyTest extends BaseReactorTest{
 
     private static final Logger logger = LoggerFactory.getLogger(BasicConsistencyTest.class);
 
-    static final GenericContainer aerospike = getAerospikeContainer();
+    private static final GenericContainer aerospike = getAerospikeContainer();
 
-    static final NioEventLoops eventLoops = new NioEventLoops();
-    static final AerospikeClient client = getAerospikeClient(aerospike, eventLoops);
-    static final IAerospikeReactorClient reactorClient = new AerospikeReactorClient(client, eventLoops);
+    private static final NioEventLoops eventLoops = new NioEventLoops();
+    private static final AerospikeClient client = getAerospikeClient(aerospike, eventLoops);
+    private static final IAerospikeReactorClient reactorClient = new AerospikeReactorClient(client, eventLoops);
 
-    static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations = basicOperations(
+    private static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations = basicOperations(
             client, reactorClient,
             AEROSPIKE_PROPERTIES.getNamespace(), "wal",
             Clock.systemUTC());
 
-    static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
+    private static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
 
-    static String setName = String.valueOf(BasicConsistencyTest.class.hashCode());
-    static AtomicInteger keyCounter = new AtomicInteger();
-    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
-    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
-    static String BIN_NAME = "value";
+    private static String setName = String.valueOf(BasicConsistencyTest.class.hashCode());
+    private static AtomicInteger keyCounter = new AtomicInteger();
+    private static String BIN_NAME = "value";
 
     private AtomicInteger exceptionsCount = new AtomicInteger();
     private Random random = new Random();
+    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
 
     @Test
     public void shouldUpdate() {
@@ -82,7 +82,7 @@ public class BasicConsistencyTest extends BaseReactorTest{
     private void update(Key key1, Key key2){
         for(int i = 0; i < 1000; i++){
             try {
-                incrementBoth(key1, key2, updater);
+                incrementBoth(key1, key2, updater, client);
             } catch (LockingException e) {
                 exceptionsCount.incrementAndGet();
                 i--;
@@ -98,27 +98,30 @@ public class BasicConsistencyTest extends BaseReactorTest{
     }
 
     public static void incrementBoth(Key key1, Key key2,
-                                     BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater) {
-        Long value1 = (Long)getValue(client, key1);
-        Long value2 = (Long)getValue(client, key2);
+                                     BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater,
+                                     AerospikeClient aerospikeClient) {
+        Long value1 = (Long)getValue(key1, aerospikeClient);
+        Long value2 = (Long)getValue(key2, aerospikeClient);
 
+        long value1New = (value1 != null ? value1 : 0) + 1;
+        long value2New = (value2 != null ? value2 : 0) + 1;
         updater.update(new AerospikeBasicBatchUpdate(
                 new AerospikeBasicBatchLocks(asList(
                         record(key1, value1),
                         record(key2, value2))),
                 asList(
-                        record(key1, (value1 != null ? value1 : 0) + 1),
-                        record(key2, (value2 != null ? value2 : 0) + 1))))
+                        record(key1, value1New),
+                        record(key2, value2New))))
                 .subscribeOn(Schedulers.parallel())
                 .block();
-        logger.debug("updated {} to {} and {} to {}", key1, value1, key2, value2);
+        logger.debug("updated {} from {} to {} and {} from {} to {}", key1, value1, value1New, key2, value2, value2New);
     }
 
     public static Record record(Key key, Long value) {
         return new Record(key, singletonList(new Bin(BIN_NAME, value)));
     }
 
-    public static Object getValue(AerospikeClient client, Key key){
+    public static Object getValue(Key key, AerospikeClient client){
         com.aerospike.client.Record record1 = client.get(null, key);
         return record1 != null ? (Long)record1.getValue(BIN_NAME) : null;
     }

@@ -109,29 +109,29 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
                     }
 
                     if(exclusiveLocker.acquire()) {
-                        logger.info("Trying to complete transaction txId=[{}], timestamp=[{}]",
+                        logger.info("Trying to complete batch batchId=[{}], timestamp=[{}]",
                                 batch.batchId, batch.timestamp);
                         LOCKS locks = batch.batchUpdate.locks();
                         try {
                             batchOperations.processAndDeleteTransaction(
                                     batch.batchId, batch.batchUpdate, true).block();
                             completeBatchesCount++;
-                            logger.info("Successfully complete transaction txId=[{}]", batch.batchId);
+                            logger.info("Successfully complete batch batchId=[{}]", batch.batchId);
                         }
                         //this is expected behaviour that may have place in case of hanged transaction was not completed:
                         //not able to acquire all locks (didn't match expected value
                         // (may have place if initial transaction was interrupted on release stage and released values were modified))
                         catch (LockingException be) {
-                            logger.info("Failed to complete transaction txId=[{}] as it's already completed", batch.batchId, be);
+                            logger.info("Failed to complete batch batchId=[{}] as it's already completed", batch.batchId, be);
                             batchOperations.releaseLocksAndDeleteWalTransactionOnError(
                                     locks, batch.batchId).block();
                             ignoredBatchesCount ++;
-                            logger.info("released locks for transaction txId=[{}]", batch.batchId, be);
+                            logger.info("released locks for batch batchId=[{}]", batch.batchId, be);
                         }
                         //even in case of error need to move to the next one
                         catch (Exception e) {
                             errorBatchesCount ++;
-                            logger.error("!!! Failed to complete transaction txId=[{}], need to be investigated",
+                            logger.error("!!! Failed to complete batch batchId=[{}], need to be investigated",
                                     batch.batchId, e);
                         }
                     }
@@ -140,7 +140,6 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         }
         catch (Throwable t) {
             logger.error("Error while running completeHangedTransactions()", t);
-            throw t;
         }
 
         return new CompletionStatistic(staleBatchesCount, completeBatchesCount, ignoredBatchesCount, errorBatchesCount);
