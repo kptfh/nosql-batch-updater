@@ -10,7 +10,7 @@ import java.util.function.Predicate;
 import static nosql.batch.update.util.HangingUtil.hanged;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.awaitility.Duration.ONE_MINUTE;
+import static org.awaitility.Duration.FIVE_MINUTES;
 
 /**
  * Check that hanged batch get recovered by WriteAheadLogCompleter
@@ -73,7 +73,7 @@ abstract public class RecoveryTest {
             new Thread(this::runUpdate).start();
 
             await().dontCatchUncaughtExceptions()
-                    .timeout(ONE_MINUTE)
+                    .timeout(FIVE_MINUTES)
                     .until(hanged::get);
 
             fixAll();
@@ -82,6 +82,10 @@ abstract public class RecoveryTest {
             completionStatisticAssertion.accept(completionStat);
 
             //check state. It should be fixed at this time
+            checkForConsistency();
+
+            //check normal update is possible
+            runUpdate();
             checkForConsistency();
         }
     }

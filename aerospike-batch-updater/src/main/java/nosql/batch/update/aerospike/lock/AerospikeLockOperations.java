@@ -82,20 +82,27 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
                 .flatMap(lockResults -> processResults(batchLocks, onErrorCleanup, lockResults));
     }
 
-    private Mono<? extends List<AerospikeLock>> processResults(LOCKS batchLocks, Function<LOCKS, Mono<Void>> onErrorCleanup, List<LockResult<AerospikeLock>> lockResults) {
+    static <LOCKS> Mono<? extends List<AerospikeLock>> processResults(LOCKS batchLocks, Function<LOCKS, Mono<Void>> onErrorCleanup, List<LockResult<AerospikeLock>> lockResults) {
         List<AerospikeLock> locks = new ArrayList<>(lockResults.size());
+        Throwable resultError = null;
         for(LockResult<AerospikeLock> lockResult : lockResults){
             if(lockResult.throwable != null){
-                return onErrorCleanup.apply(batchLocks)
-                        .then(Mono.error(() -> {
-                            if(lockResult.throwable instanceof LockingException){
-                                throw Exceptions.propagate(lockResult.throwable);
-                            } else {
-                                throw Exceptions.propagate(new PermanentLockingException(lockResult.throwable));
-                            }
-                        }));
+                if(lockResult.throwable instanceof LockingException){
+                    if(resultError == null) {
+                        resultError = lockResult.throwable;
+                    }
+                } else {
+                    //give priority to non LockingException
+                    resultError = new PermanentLockingException(lockResult.throwable);
+                    break;
+                }
             }
             locks.add(lockResult.value);
+        }
+        if(resultError != null){
+            RuntimeException throwable = Exceptions.propagate(resultError);
+            return onErrorCleanup.apply(batchLocks)
+                    .then(Mono.error(() -> {throw throwable;}));
         }
         return Mono.just(locks);
     }

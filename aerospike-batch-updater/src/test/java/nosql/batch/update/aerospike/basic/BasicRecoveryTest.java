@@ -56,13 +56,13 @@ public class BasicRecoveryTest extends RecoveryTest {
 
     static String setName = String.valueOf(BasicRecoveryTest.class.hashCode());
     static AtomicInteger keyCounter = new AtomicInteger();
-    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
-    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private final Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private final Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
 
     @Override
     protected void runUpdate() {
         for(int i = 0; i < 10; i++){
-            incrementBoth(key1, key2, updater);
+            incrementBoth(key1, key2, updater, client);
         }
     }
 
@@ -74,7 +74,7 @@ public class BasicRecoveryTest extends RecoveryTest {
 
     @Override
     protected void checkForConsistency() {
-        assertThat(getValue(client, key1)).isEqualTo(getValue(client, key2));
+        assertThat(getValue(key1, client)).isEqualTo(getValue(key2, client));
 
         await().timeout(ONE_SECOND).untilAsserted(() ->
                 assertThat(operations.getWriteAheadLogManager().getStaleBatches(STALE_BATCHES_THRESHOLD)).isEmpty());

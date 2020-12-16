@@ -64,13 +64,13 @@ public class BasicBatchRetentionTest extends BatchRetentionTest {
     @Override
     protected void runUpdate() {
         for(int i = 0; i < 10; i++){
-            incrementBoth(key1, key2, updater);
+            incrementBoth(key1, key2, updater, client);
         }
     }
 
     @Override
     protected void checkForConsistency() {
-        assertThat(getValue(client, key1)).isEqualTo(getValue(client, key2));
+        assertThat(getValue(key1, client)).isEqualTo(getValue(key2, client));
 
         await().timeout(ONE_SECOND).untilAsserted(() ->
                 assertThat(operations.getWriteAheadLogManager().getStaleBatches(STALE_BATCHES_THRESHOLD)).isEmpty());
