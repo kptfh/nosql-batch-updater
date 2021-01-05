@@ -8,7 +8,9 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>batch-updater</module>
         <module>reactor-batch-updater</module>
+        <module>aerospike-batch-updater</module>
         <module>aerospike-reactor-batch-updater</module>
         <module>aerospike-container</module>
     </modules>
@@ -116,6 +118,18 @@
 
             <dependency>
                 <groupId>com.playtika.nosql</groupId>
+                <artifactId>batch-updater</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.playtika.nosql</groupId>
+                <artifactId>aerospike-batch-updater</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.playtika.nosql</groupId>
                 <artifactId>reactor-batch-updater</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -127,6 +141,22 @@
             </dependency>
 
             <!--Test-->
+
+            <dependency>
+                <groupId>com.playtika.nosql</groupId>
+                <artifactId>batch-updater</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.playtika.nosql</groupId>
+                <artifactId>aerospike-batch-updater</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
 
             <dependency>
                 <groupId>com.playtika.nosql</groupId>

@@ -1,25 +1,26 @@
 package nosql.batch.update.reactor.aerospike.basic;
 
-import nosql.batch.update.FailingUpdateOperations;
-import nosql.batch.update.reactor.UpdateOperations;
+import nosql.batch.update.ReactorFailingUpdateOperations;
+import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.reactor.ReactorUpdateOperations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static nosql.batch.update.reactor.util.HangingUtil.selectFlaking;
+import static nosql.batch.update.util.HangingUtil.selectFlaking;
 
-public class AerospikeBasicFailingUpdateOperations extends FailingUpdateOperations<List<Record>> {
+public class AerospikeBasicFailingUpdateOperations extends ReactorFailingUpdateOperations<List<Record>> {
 
-    private static Logger logger = LoggerFactory.getLogger(AerospikeBasicFailingUpdateOperations.class);
+    private static final Logger logger = LoggerFactory.getLogger(AerospikeBasicFailingUpdateOperations.class);
 
-    public AerospikeBasicFailingUpdateOperations(UpdateOperations<List<Record>> updateOperations, AtomicBoolean failsUpdate) {
+    public AerospikeBasicFailingUpdateOperations(ReactorUpdateOperations<List<Record>> updateOperations, AtomicBoolean failsUpdate) {
         super(updateOperations, failsUpdate);
     }
 
     public static AerospikeBasicFailingUpdateOperations failingUpdates(
-            UpdateOperations<List<Record>> updateOperations, AtomicBoolean failsUpdate){
+            ReactorUpdateOperations<List<Record>> updateOperations, AtomicBoolean failsUpdate){
         return new AerospikeBasicFailingUpdateOperations(updateOperations, failsUpdate);
     }
 

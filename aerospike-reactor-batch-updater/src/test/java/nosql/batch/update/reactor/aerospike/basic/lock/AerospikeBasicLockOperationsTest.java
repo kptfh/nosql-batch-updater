@@ -6,9 +6,10 @@ import com.aerospike.client.Value;
 import com.aerospike.client.async.NioEventLoops;
 import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
-import nosql.batch.update.reactor.aerospike.lock.AerospikeLock;
-import nosql.batch.update.reactor.aerospike.wal.AerospikeWriteAheadLogManager;
-import nosql.batch.update.reactor.lock.LockOperationsTest;
+import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.reactor.aerospike.wal.AerospikeReactorWriteAheadLogManager;
+import nosql.batch.update.reactor.lock.ReactorLockOperationsTest;
 import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.GenericContainer;
 
@@ -18,13 +19,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.*;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeClient;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static nosql.batch.update.reactor.aerospike.basic.AerospikeBasicBatchUpdater.basicLockOperations;
 import static nosql.batch.update.reactor.aerospike.basic.BasicConsistencyTest.record;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class AerospikeBasicLockOperationsTest
-        extends LockOperationsTest<AerospikeBasicBatchLocks, AerospikeLock, Value> {
+        extends ReactorLockOperationsTest<AerospikeBasicBatchLocks, AerospikeLock, Value> {
 
     static final GenericContainer aerospike = getAerospikeContainer();
 
@@ -53,7 +56,7 @@ public class AerospikeBasicLockOperationsTest
 
     @Override
     protected Value generateBatchId() {
-        return AerospikeWriteAheadLogManager.generateBatchId();
+        return AerospikeReactorWriteAheadLogManager.generateBatchId();
     }
 
     @Override
