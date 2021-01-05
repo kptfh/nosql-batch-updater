@@ -7,11 +7,13 @@ import com.aerospike.client.Value;
 import com.aerospike.client.async.NioEventLoops;
 import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
-import nosql.batch.update.reactor.BatchOperations;
-import nosql.batch.update.reactor.BatchUpdater;
-import nosql.batch.update.reactor.aerospike.basic.lock.AerospikeBasicBatchLocks;
-import nosql.batch.update.reactor.aerospike.lock.AerospikeLock;
-import nosql.batch.update.reactor.lock.LockingException;
+import nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdate;
+import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.lock.LockingException;
+import nosql.batch.update.reactor.ReactorBatchOperations;
+import nosql.batch.update.reactor.ReactorBatchUpdater;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.*;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeClient;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static nosql.batch.update.reactor.aerospike.basic.AerospikeBasicBatchUpdater.basicOperations;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,12 +46,12 @@ public class BasicConsistencyTest extends BaseReactorTest{
     private static final AerospikeClient client = getAerospikeClient(aerospike, eventLoops);
     private static final IAerospikeReactorClient reactorClient = new AerospikeReactorClient(client, eventLoops);
 
-    private static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations = basicOperations(
+    private static ReactorBatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations = basicOperations(
             client, reactorClient,
             AEROSPIKE_PROPERTIES.getNamespace(), "wal",
             Clock.systemUTC());
 
-    private static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
+    private static ReactorBatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new ReactorBatchUpdater<>(operations);
 
     private static String setName = String.valueOf(BasicConsistencyTest.class.hashCode());
     private static AtomicInteger keyCounter = new AtomicInteger();
@@ -98,7 +102,7 @@ public class BasicConsistencyTest extends BaseReactorTest{
     }
 
     public static void incrementBoth(Key key1, Key key2,
-                                     BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater,
+                                     ReactorBatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater,
                                      AerospikeClient aerospikeClient) {
         Long value1 = (Long)getValue(key1, aerospikeClient);
         Long value2 = (Long)getValue(key2, aerospikeClient);

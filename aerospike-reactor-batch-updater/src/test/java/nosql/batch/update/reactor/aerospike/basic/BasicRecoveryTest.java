@@ -6,15 +6,16 @@ import com.aerospike.client.Value;
 import com.aerospike.client.async.NioEventLoops;
 import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
-import nosql.batch.update.reactor.BatchOperations;
-import nosql.batch.update.reactor.BatchUpdater;
 import nosql.batch.update.RecoveryTest;
-import nosql.batch.update.reactor.aerospike.basic.lock.AerospikeBasicBatchLocks;
-import nosql.batch.update.reactor.aerospike.lock.AerospikeLock;
-import nosql.batch.update.reactor.util.FixedClock;
-import nosql.batch.update.reactor.wal.CompletionStatistic;
-import nosql.batch.update.reactor.wal.ExclusiveLocker;
-import nosql.batch.update.reactor.wal.WriteAheadLogCompleter;
+import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.reactor.ReactorBatchOperations;
+import nosql.batch.update.reactor.ReactorBatchUpdater;
+import nosql.batch.update.reactor.wal.ReactorWriteAheadLogCompleter;
+import nosql.batch.update.util.FixedClock;
+import nosql.batch.update.wal.CompletionStatistic;
+import nosql.batch.update.wal.ExclusiveLocker;
 import org.testcontainers.containers.GenericContainer;
 
 import java.time.Duration;
@@ -22,7 +23,10 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.*;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.deleteAllRecords;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeClient;
+import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static nosql.batch.update.reactor.aerospike.basic.BasicConsistencyTest.getValue;
 import static nosql.batch.update.reactor.aerospike.basic.BasicConsistencyTest.incrementBoth;
 import static nosql.batch.update.reactor.aerospike.basic.util.BasicHangingOperationsUtil.hangingOperations;
@@ -40,16 +44,16 @@ public class BasicRecoveryTest extends RecoveryTest {
 
     static final FixedClock clock = new FixedClock();
 
-    static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations
+    static ReactorBatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> operations
             = hangingOperations(client, reactorClient, clock, hangsAcquire, hangsUpdate, hangsRelease, hangsDeleteBatchInWal);
 
-    static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater
-            = new BatchUpdater<>(operations);
+    static ReactorBatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater
+            = new ReactorBatchUpdater<>(operations);
 
     public static final Duration STALE_BATCHES_THRESHOLD = Duration.ofSeconds(1);
 
-    static WriteAheadLogCompleter<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> walCompleter
-            = new WriteAheadLogCompleter<>(
+    static ReactorWriteAheadLogCompleter<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> walCompleter
+            = new ReactorWriteAheadLogCompleter<>(
             operations, STALE_BATCHES_THRESHOLD,
             new DummyExclusiveLocker(),
             Executors.newScheduledThreadPool(1));

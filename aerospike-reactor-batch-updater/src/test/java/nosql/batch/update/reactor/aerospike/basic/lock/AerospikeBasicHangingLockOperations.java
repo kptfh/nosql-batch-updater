@@ -1,10 +1,11 @@
 package nosql.batch.update.reactor.aerospike.basic.lock;
 
 import com.aerospike.client.Value;
-import nosql.batch.update.reactor.aerospike.basic.Record;
-import nosql.batch.update.reactor.aerospike.lock.AerospikeLock;
-import nosql.batch.update.reactor.lock.HangingLockOperations;
-import nosql.batch.update.reactor.lock.LockOperations;
+import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.reactor.lock.ReactorHangingLockOperations;
+import nosql.batch.update.reactor.lock.ReactorLockOperations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,19 +13,20 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static nosql.batch.update.reactor.util.HangingUtil.selectFlaking;
+import static nosql.batch.update.util.HangingUtil.selectFlaking;
+
 
 public class AerospikeBasicHangingLockOperations
-        extends HangingLockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> {
+        extends ReactorHangingLockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> {
 
-    private static Logger logger = LoggerFactory.getLogger(AerospikeBasicHangingLockOperations.class);
+    private static final Logger logger = LoggerFactory.getLogger(AerospikeBasicHangingLockOperations.class);
 
-    private AerospikeBasicHangingLockOperations(LockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> lockOperations,
+    private AerospikeBasicHangingLockOperations(ReactorLockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> lockOperations,
                                                 AtomicBoolean failsAcquire, AtomicBoolean failsRelease) {
         super(lockOperations, failsAcquire, failsRelease);
     }
 
-    public static AerospikeBasicHangingLockOperations hangingLocks(LockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> lockOperations,
+    public static AerospikeBasicHangingLockOperations hangingLocks(ReactorLockOperations<AerospikeBasicBatchLocks, AerospikeLock, Value> lockOperations,
                                                                    AtomicBoolean failsAcquire, AtomicBoolean failsRelease){
         return new AerospikeBasicHangingLockOperations(lockOperations, failsAcquire, failsRelease);
     }

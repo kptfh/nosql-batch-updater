@@ -3,10 +3,10 @@ package nosql.batch.update.reactor.aerospike.basic.util;
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Value;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
-import nosql.batch.update.reactor.BatchOperations;
-import nosql.batch.update.reactor.aerospike.basic.Record;
-import nosql.batch.update.reactor.aerospike.basic.lock.AerospikeBasicBatchLocks;
-import nosql.batch.update.reactor.aerospike.lock.AerospikeLock;
+import nosql.batch.update.aerospike.basic.Record;
+import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
+import nosql.batch.update.aerospike.lock.AerospikeLock;
+import nosql.batch.update.reactor.ReactorBatchOperations;
 
 import java.time.Clock;
 import java.util.List;
@@ -16,7 +16,7 @@ import static nosql.batch.update.reactor.aerospike.basic.AerospikeBasicBatchUpda
 
 public class BasicOperationsUtil {
 
-    public static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> getBasicOperations(
+    public static ReactorBatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> getBasicOperations(
             AerospikeClient client, IAerospikeReactorClient reactorClient, Clock clock) {
         return basicOperations(
                 client, reactorClient,

@@ -47,8 +47,17 @@
 
         <dependency>
             <groupId>com.playtika.nosql</groupId>
+            <artifactId>aerospike-batch-updater</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.playtika.nosql</groupId>
             <artifactId>reactor-batch-updater</artifactId>
-            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.playtika.nosql</groupId>
+            <artifactId>batch-updater</artifactId>
         </dependency>
 
         <dependency>
@@ -59,7 +68,21 @@
         <!-- Tests -->
         <dependency>
             <groupId>com.playtika.nosql</groupId>
+            <artifactId>batch-updater</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.playtika.nosql</groupId>
             <artifactId>reactor-batch-updater</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.playtika.nosql</groupId>
+            <artifactId>aerospike-batch-updater</artifactId>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
