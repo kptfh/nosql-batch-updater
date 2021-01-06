@@ -10,7 +10,6 @@ import nosql.batch.update.lock.LockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,9 +66,9 @@ public class AerospikeBasicFailingLockOperations
     }
 
     @Override
-    public void release(Collection<AerospikeLock> locks, Value batchId) {
+    public void release(List<AerospikeLock> locks, Value batchId) {
         if(failsRelease.get()){
-            Collection<AerospikeLock> partialLocks = selectFlaking(locks,
+            List<AerospikeLock> partialLocks = selectFlaking(locks,
                     key -> logger.info("release locks failed flaking for key [{}]", key));
             super.release(partialLocks, batchId);
             throw new RuntimeException();

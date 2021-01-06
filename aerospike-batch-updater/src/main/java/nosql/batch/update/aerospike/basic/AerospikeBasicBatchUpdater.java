@@ -22,7 +22,7 @@ public class AerospikeBasicBatchUpdater {
             ExecutorService aerospikeExecutorService){
 
         AerospikeWriteAheadLogManager<AerospikeBasicBatchLocks, List<Record>, List<Record>> walManager =
-                basicWalManager(client, walNamespace, walSetName, clock);
+                basicWalManager(client, walNamespace, walSetName, clock, aerospikeExecutorService);
 
         AerospikeLockOperations<AerospikeBasicBatchLocks, List<Record>> lockOperations =
                 basicLockOperations(client, aerospikeExecutorService);
@@ -47,11 +47,11 @@ public class AerospikeBasicBatchUpdater {
     }
 
     public static AerospikeWriteAheadLogManager<AerospikeBasicBatchLocks, List<Record>, List<Record>> basicWalManager(
-            IAerospikeClient client, String walNamespace, String walSetName, Clock clock) {
+            IAerospikeClient client, String walNamespace, String walSetName, Clock clock, ExecutorService executorService) {
         return new AerospikeWriteAheadLogManager<>(
                 client, walNamespace, walSetName,
                 new AerospikeBasicBatchUpdateSerde(),
-                clock);
+                clock, executorService);
     }
 
 }

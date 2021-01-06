@@ -27,6 +27,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 
 public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>, UPDATES, EV>
         implements WriteAheadLogManager<LOCKS, UPDATES, Value> {
@@ -43,15 +46,17 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
     private final WritePolicy deletePolicy;
     private final AerospikeBatchUpdateSerde<LOCKS, UPDATES, EV> batchSerializer;
     private final Clock clock;
+    private final ExecutorService executorService;
 
     public AerospikeWriteAheadLogManager(IAerospikeClient client,
                                          String walNamespace, String walSetName,
                                          AerospikeBatchUpdateSerde<LOCKS, UPDATES, EV> batchSerializer,
-                                         Clock clock) {
+                                         Clock clock, ExecutorService executorService) {
         this.client = client;
         this.walNamespace = walNamespace;
         this.walSetName = walSetName;
         this.writePolicy = configureWritePolicy(client.getWritePolicyDefault());
+        this.executorService = executorService;
         this.deletePolicy = this.writePolicy;
         this.batchSerializer = batchSerializer;
         this.clock = clock;
@@ -78,10 +83,13 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
         bins.add(new Bin(TIMESTAMP_BIN_NAME, Value.get(clock.millis())));
 
         try {
-            client.put(writePolicy,
-                    new Key(walNamespace, walSetName, batchId),
-                    bins.toArray(new Bin[0]));
-            return batchId;
+            //using executor to not use all connections to aerospike node
+            return supplyAsync(() -> {
+                client.put(writePolicy,
+                        new Key(walNamespace, walSetName, batchId),
+                        bins.toArray(new Bin[0]));
+                return batchId;
+            }, executorService).join();
         } catch (AerospikeException ae){
             if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG){
                 logger.error("update data size to big: {}", batchBins.stream().mapToInt(bin -> bin.value.estimateSize()).sum());
@@ -96,16 +104,13 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
 
     @Override
     public boolean deleteBatch(Value batchId) {
-        return client.delete(deletePolicy, new Key(walNamespace, walSetName, batchId));
+        //using executor to not use all connections to aerospike node
+        return supplyAsync(() -> client.delete(deletePolicy, new Key(walNamespace, walSetName, batchId)), executorService).join();
     }
 
     @Override
     public List<WalRecord<LOCKS, UPDATES, Value>> getStaleBatches(Duration staleThreshold) {
-        Statement statement = new Statement();
-        statement.setNamespace(walNamespace);
-        statement.setSetName(walSetName);
-        statement.setFilter(Filter.range(TIMESTAMP_BIN_NAME,
-                0,  Math.max(clock.millis() - staleThreshold.toMillis(), 0)));
+        Statement statement = staleBatchesStatement(staleThreshold, walNamespace, walSetName, clock);
         RecordSet recordSet = client.query(null, statement);
 
         List<WalRecord<LOCKS, UPDATES, Value>> staleTransactions = new ArrayList<>();
@@ -119,6 +124,15 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
         Collections.sort(staleTransactions);
 
         return staleTransactions;
+    }
+
+    public static Statement staleBatchesStatement(Duration staleThreshold, String walNamespace, String walSetName, Clock clock) {
+        Statement statement = new Statement();
+        statement.setNamespace(walNamespace);
+        statement.setSetName(walSetName);
+        statement.setFilter(Filter.range(TIMESTAMP_BIN_NAME,
+                0,  Math.max(clock.millis() - staleThreshold.toMillis(), 0)));
+        return statement;
     }
 
     static byte[] getBytesFromUUID(UUID uuid) {

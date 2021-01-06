@@ -16,6 +16,7 @@ import nosql.batch.update.wal.WriteAheadLogManager;
 import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -46,7 +47,8 @@ public class BasicFailingOperationsUtil {
                 failingUpdates(new AerospikeBasicUpdateOperations(client, executorService), failsUpdate);
 
         WriteAheadLogManager<AerospikeBasicBatchLocks, List<Record>, Value> walManager
-                = failingWal(basicWalManager(client, AEROSPIKE_PROPERTIES.getNamespace(), "wal", clock),
+                = failingWal(basicWalManager(client, AEROSPIKE_PROPERTIES.getNamespace(), "wal", clock,
+                Executors.newCachedThreadPool()),
                 failsDeleteWal, deletesInProcess);
 
         return new BatchOperations<>(walManager, lockOperations, updateOperations, executorService);

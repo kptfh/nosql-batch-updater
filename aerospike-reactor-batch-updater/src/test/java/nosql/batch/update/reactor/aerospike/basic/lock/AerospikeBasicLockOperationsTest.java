@@ -8,7 +8,7 @@ import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
-import nosql.batch.update.reactor.aerospike.wal.AerospikeReactorWriteAheadLogManager;
+import nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager;
 import nosql.batch.update.reactor.lock.ReactorLockOperationsTest;
 import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.GenericContainer;
@@ -39,8 +39,6 @@ public class AerospikeBasicLockOperationsTest
     static AtomicInteger keyCounter = new AtomicInteger();
     private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
     private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
-    private Key key3 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
-    private Key key4 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
 
 
     AerospikeBasicBatchLocks locks1 = new AerospikeBasicBatchLocks(asList(record(key1, null), record(key2, null)));
@@ -56,7 +54,7 @@ public class AerospikeBasicLockOperationsTest
 
     @Override
     protected Value generateBatchId() {
-        return AerospikeReactorWriteAheadLogManager.generateBatchId();
+        return AerospikeWriteAheadLogManager.generateBatchId();
     }
 
     @Override

@@ -17,10 +17,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.runAsync;
@@ -74,13 +74,19 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
             LOCKS batchLocks,
             boolean checkTransactionId) throws LockingException {
 
-        List<CompletableFuture<LockResult<AerospikeLock>>> futures = new ArrayList<>(batchLocks.keysToLock().size());
-        for(Key lockKey : batchLocks.keysToLock()){
+        List<Key> keys = batchLocks.keysToLock();
+        List<CompletableFuture<LockResult<AerospikeLock>>> futures = new ArrayList<>(keys.size());
+        AtomicReference<Throwable> fail = new AtomicReference<>();
+        for(Key lockKey : keys){
             futures.add(supplyAsync(() -> {
                 try {
+                    if(fail.get() != null){
+                        return null;
+                    }
                     AerospikeLock lock = putLock(batchId, lockKey, checkTransactionId);
                     return new LockResult<>(lock);
                 } catch (Throwable t) {
+                    fail.set(t);
                     return new LockResult<>(t);
                 }
             }, aerospikeExecutor));
@@ -97,18 +103,20 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         LockingException resultError = null;
         for(CompletableFuture<LockResult<AerospikeLock>> future : lockResults){
             LockResult<AerospikeLock> lockResult = future.join();
-            if(lockResult.throwable != null){
-                if(lockResult.throwable instanceof LockingException){
-                    if(resultError == null) {
-                        resultError = (LockingException)lockResult.throwable;
+            if(lockResult != null) {
+                if (lockResult.throwable != null) {
+                    if (lockResult.throwable instanceof LockingException) {
+                        if (resultError == null) {
+                            resultError = (LockingException) lockResult.throwable;
+                        }
+                    } else {
+                        //give priority to non LockingException
+                        resultError = new PermanentLockingException(lockResult.throwable);
+                        break;
                     }
-                } else {
-                    //give priority to non LockingException
-                    resultError = new PermanentLockingException(lockResult.throwable);
-                    break;
                 }
+                locks.add(lockResult.value);
             }
-            locks.add(lockResult.value);
         }
         if(resultError != null){
             throw resultError;
@@ -177,7 +185,8 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         List<Key> keys = aerospikeBatchLocks.keysToLock();
 
         Key[] keysArray = keys.toArray(new Key[0]);
-        Record[] records = aerospikeClient.get(null, keysArray);
+        //using executor to not use all connections to aerospike node
+        Record[] records = supplyAsync(() -> aerospikeClient.get(null, keysArray), aerospikeExecutor).join();
 
         List<AerospikeLock> keysFiltered = new ArrayList<>(keys.size());
         for(int i = 0, m = keysArray.length; i < m; i++){
@@ -190,15 +199,17 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
     }
 
     @Override
-    public void release(Collection<AerospikeLock> locks, Value batchId) {
+    public void release(List<AerospikeLock> locks, Value batchId) {
         List<CompletableFuture<Void>> futures = new ArrayList<>(locks.size());
         for(AerospikeLock lock : locks){
-            futures.add(runAsync(() -> {
-                aerospikeClient.delete(deleteLockPolicy, lock.key);
-                logger.trace("released lock key=[{}], batchId=[{}]", lock.key, batchId);
-            }));
+            futures.add(runAsync(() -> releaseLock(lock, batchId), aerospikeExecutor));
         }
         allOf(futures.toArray(new CompletableFuture<?>[0])).join();
+    }
+
+    protected void releaseLock(AerospikeLock lock, Value batchId) {
+        aerospikeClient.delete(deleteLockPolicy, lock.key);
+        logger.trace("released lock key=[{}], batchId=[{}]", lock.key, batchId);
     }
 
     public static class LockResult<V> {
