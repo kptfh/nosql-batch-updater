@@ -31,6 +31,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager.generateBatchId;
+import static nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager.staleBatchesStatement;
+
 public class AerospikeReactorWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>, UPDATES, EV>
         implements ReactorWriteAheadLogManager<LOCKS, UPDATES, Value> {
 
@@ -96,10 +99,6 @@ public class AerospikeReactorWriteAheadLogManager<LOCKS extends AerospikeBatchLo
                 .then(Mono.just(batchId));
     }
 
-    public static Value generateBatchId() {
-        return Value.get(getBytesFromUUID(UUID.randomUUID()));
-    }
-
     @Override
     public Mono<Boolean> deleteBatch(Value batchId) {
         return reactorClient.delete(deletePolicy, new Key(walNamespace, walSetName, batchId))
@@ -109,11 +108,7 @@ public class AerospikeReactorWriteAheadLogManager<LOCKS extends AerospikeBatchLo
 
     @Override
     public List<WalRecord<LOCKS, UPDATES, Value>> getStaleBatches(Duration staleThreshold) {
-        Statement statement = new Statement();
-        statement.setNamespace(walNamespace);
-        statement.setSetName(walSetName);
-        statement.setFilter(Filter.range(TIMESTAMP_BIN_NAME,
-                0,  Math.max(clock.millis() - staleThreshold.toMillis(), 0)));
+        Statement statement = staleBatchesStatement(staleThreshold, walNamespace, walSetName, clock);
         RecordSet recordSet = client.query(null, statement);
 
         List<WalRecord<LOCKS, UPDATES, Value>> staleTransactions = new ArrayList<>();

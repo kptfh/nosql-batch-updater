@@ -8,7 +8,6 @@ import nosql.batch.update.lock.LockOperations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -39,7 +38,7 @@ public class AerospikeBasicHangingLockOperations
     }
 
     @Override
-    protected Collection<AerospikeLock> selectFlakingToRelease(Collection<AerospikeLock> locks) {
+    protected List<AerospikeLock> selectFlakingToRelease(List<AerospikeLock> locks) {
         return selectFlaking(locks,
                 key -> logger.info("release locks failed flaking for key [{}]", key));
     }

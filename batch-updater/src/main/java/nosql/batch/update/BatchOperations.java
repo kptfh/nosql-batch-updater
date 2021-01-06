@@ -6,7 +6,6 @@ import nosql.batch.update.wal.WriteAheadLogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -50,7 +49,7 @@ public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         releaseLocksAndDeleteWalTransaction(locksAcquired, batchId);
     }
 
-    private void releaseLocksAndDeleteWalTransaction(Collection<L> locks, BATCH_ID batchId) {
+    private void releaseLocksAndDeleteWalTransaction(List<L> locks, BATCH_ID batchId) {
         lockOperations.release(locks, batchId);
         //here we use fire&forget to reduce response time
         executorService.submit(() -> {

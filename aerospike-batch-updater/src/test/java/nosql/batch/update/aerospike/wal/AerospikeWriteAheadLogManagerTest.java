@@ -13,6 +13,7 @@ import org.testcontainers.containers.GenericContainer;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -48,7 +49,7 @@ public class AerospikeWriteAheadLogManagerTest extends WriteAheadLogManagerTest<
                         return null;
                     }
                 },
-                clock);
+                clock, Executors.newCachedThreadPool());
 
 
 

@@ -1,6 +1,5 @@
 package nosql.batch.update.lock;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -20,7 +19,7 @@ abstract public class HangingLockOperations<LOCKS, L extends Lock, BATCH_ID> imp
     }
 
     abstract protected LOCKS selectFlakingToAcquire(LOCKS locks);
-    abstract protected Collection<L> selectFlakingToRelease(Collection<L> locks);
+    abstract protected List<L> selectFlakingToRelease(List<L> locks);
 
     @Override
     public List<L> acquire(BATCH_ID batchId, LOCKS locks, boolean checkTransactionId) throws LockingException {
@@ -42,9 +41,9 @@ abstract public class HangingLockOperations<LOCKS, L extends Lock, BATCH_ID> imp
     }
 
     @Override
-    public void release(Collection<L> locks, BATCH_ID batchId) {
+    public void release(List<L> locks, BATCH_ID batchId) {
         if(failsRelease.get()){
-            Collection<L> partialLocks = selectFlakingToRelease(locks);
+            List<L> partialLocks = selectFlakingToRelease(locks);
             try {
                 lockOperations.release(partialLocks, batchId);
             } finally {
