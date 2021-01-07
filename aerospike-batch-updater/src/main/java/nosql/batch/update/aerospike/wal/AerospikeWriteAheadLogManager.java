@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 
-import static java.util.concurrent.CompletableFuture.supplyAsync;
-
 public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>, UPDATES, EV>
         implements WriteAheadLogManager<LOCKS, UPDATES, Value> {
 
@@ -46,17 +44,15 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
     private final WritePolicy deletePolicy;
     private final AerospikeBatchUpdateSerde<LOCKS, UPDATES, EV> batchSerializer;
     private final Clock clock;
-    private final ExecutorService executorService;
 
     public AerospikeWriteAheadLogManager(IAerospikeClient client,
                                          String walNamespace, String walSetName,
                                          AerospikeBatchUpdateSerde<LOCKS, UPDATES, EV> batchSerializer,
-                                         Clock clock, ExecutorService executorService) {
+                                         Clock clock) {
         this.client = client;
         this.walNamespace = walNamespace;
         this.walSetName = walSetName;
         this.writePolicy = configureWritePolicy(client.getWritePolicyDefault());
-        this.executorService = executorService;
         this.deletePolicy = this.writePolicy;
         this.batchSerializer = batchSerializer;
         this.clock = clock;
@@ -83,13 +79,10 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
         bins.add(new Bin(TIMESTAMP_BIN_NAME, Value.get(clock.millis())));
 
         try {
-            //using executor to not use all connections to aerospike node
-            return supplyAsync(() -> {
-                client.put(writePolicy,
+            client.put(writePolicy,
                         new Key(walNamespace, walSetName, batchId),
                         bins.toArray(new Bin[0]));
-                return batchId;
-            }, executorService).join();
+            return batchId;
         } catch (AerospikeException ae){
             if(ae.getResultCode() == ResultCode.RECORD_TOO_BIG){
                 logger.error("update data size to big: {}", batchBins.stream().mapToInt(bin -> bin.value.estimateSize()).sum());
@@ -104,8 +97,7 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
 
     @Override
     public boolean deleteBatch(Value batchId) {
-        //using executor to not use all connections to aerospike node
-        return supplyAsync(() -> client.delete(deletePolicy, new Key(walNamespace, walSetName, batchId)), executorService).join();
+        return client.delete(deletePolicy, new Key(walNamespace, walSetName, batchId));
     }
 
     @Override

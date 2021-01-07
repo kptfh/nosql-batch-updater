@@ -22,6 +22,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.singletonList;
 import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.runAsync;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
@@ -75,6 +76,19 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
             boolean checkTransactionId) throws LockingException {
 
         List<Key> keys = batchLocks.keysToLock();
+
+        if(keys.size() == 1){
+            try {
+                return singletonList(putLock(batchId, keys.get(0), checkTransactionId));
+            } catch (Exception e) {
+                if(e instanceof LockingException){
+                    throw e;
+                } else {
+                    throw new PermanentLockingException(e);
+                }
+            }
+        }
+
         List<CompletableFuture<LockResult<AerospikeLock>>> futures = new ArrayList<>(keys.size());
         AtomicReference<Throwable> fail = new AtomicReference<>();
         for(Key lockKey : keys){
@@ -185,8 +199,7 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         List<Key> keys = aerospikeBatchLocks.keysToLock();
 
         Key[] keysArray = keys.toArray(new Key[0]);
-        //using executor to not use all connections to aerospike node
-        Record[] records = supplyAsync(() -> aerospikeClient.get(null, keysArray), aerospikeExecutor).join();
+        Record[] records = aerospikeClient.get(null, keysArray);
 
         List<AerospikeLock> keysFiltered = new ArrayList<>(keys.size());
         for(int i = 0, m = keysArray.length; i < m; i++){
@@ -200,6 +213,11 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
 
     @Override
     public void release(List<AerospikeLock> locks, Value batchId) {
+        if(locks.size() == 1){
+            releaseLock(locks.get(0), batchId);
+            return;
+        }
+
         List<CompletableFuture<Void>> futures = new ArrayList<>(locks.size());
         for(AerospikeLock lock : locks){
             futures.add(runAsync(() -> releaseLock(lock, batchId), aerospikeExecutor));
