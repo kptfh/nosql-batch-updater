@@ -19,7 +19,8 @@ public class AerospikeBasicBatchUpdater {
             String walNamespace,
             String walSetName,
             Clock clock,
-            ExecutorService aerospikeExecutorService){
+            ExecutorService aerospikeExecutorService,
+            ExecutorService batchExecutorService){
 
         AerospikeWriteAheadLogManager<AerospikeBasicBatchLocks, List<Record>, List<Record>> walManager =
                 basicWalManager(client, walNamespace, walSetName, clock);
@@ -29,7 +30,7 @@ public class AerospikeBasicBatchUpdater {
 
         AerospikeBasicUpdateOperations updateOperations = basicUpdateOperations(client, aerospikeExecutorService);
 
-        return new BatchOperations<>(walManager, lockOperations, updateOperations, aerospikeExecutorService);
+        return new BatchOperations<>(walManager, lockOperations, updateOperations, batchExecutorService);
     }
 
     public static AerospikeBasicUpdateOperations basicUpdateOperations(

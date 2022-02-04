@@ -44,6 +44,7 @@ public class BasicConsistencyTest {
             client,
             AEROSPIKE_PROPERTIES.getNamespace(), "wal",
             Clock.systemUTC(),
+            Executors.newCachedThreadPool(),
             Executors.newCachedThreadPool());
 
     private static BatchUpdater<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> updater = new BatchUpdater<>(operations);
