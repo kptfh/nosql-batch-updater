@@ -45,7 +45,7 @@ public class AerospikeReactorLockOperationsTest {
         AerospikeReactorLockOperations.processResults(lockResults).block();
     }
 
-    @Test(expected = PermanentLockingException.class)
+    @Test(expected = RuntimeException.class)
     public void shouldSelectNonLockingError(){
 
         Key keyLocked = new Key("ns", "set", "1");

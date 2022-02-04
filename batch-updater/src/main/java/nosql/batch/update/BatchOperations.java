@@ -2,6 +2,7 @@ package nosql.batch.update;
 
 import nosql.batch.update.lock.Lock;
 import nosql.batch.update.lock.LockOperations;
+import nosql.batch.update.lock.LockingException;
 import nosql.batch.update.wal.WriteAheadLogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,12 +33,12 @@ public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         List<L> locksAcquired;
         try {
             locksAcquired = lockOperations.acquire(batchId, batchUpdate.locks(), calledByWal);
-        } catch (Throwable t) {
+        } catch (LockingException lockingException) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Failed to acquire locks [{}] batchId=[{}]. Will release locks", batchId, batchUpdate.locks());
             }
             releaseLocksAndDeleteWalTransactionOnError(batchUpdate.locks(), batchId);
-            throw t;
+            throw lockingException;
         }
 
         updateOperations.updateMany(batchUpdate.updates(), calledByWal);

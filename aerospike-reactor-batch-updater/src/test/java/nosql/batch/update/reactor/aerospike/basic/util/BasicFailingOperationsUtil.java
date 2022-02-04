@@ -18,6 +18,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static nosql.batch.update.reactor.aerospike.basic.AerospikeBasicBatchUpdater.basicWalManager;
@@ -29,8 +30,8 @@ public class BasicFailingOperationsUtil {
     public static ReactorBatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> failingOperations(
             IAerospikeClient client, IAerospikeReactorClient reactorClient,
             Clock clock,
-            AtomicBoolean failsAcquire,
-            AtomicBoolean failsCheckValue,
+            AtomicReference<Throwable> failsAcquire,
+            AtomicReference<Throwable> failsCheckValue,
             AtomicBoolean failsUpdate,
             AtomicBoolean failsRelease,
             AtomicBoolean failsDeleteWal,

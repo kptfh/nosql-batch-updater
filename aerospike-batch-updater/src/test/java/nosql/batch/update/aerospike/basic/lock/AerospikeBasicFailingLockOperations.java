@@ -6,13 +6,15 @@ import nosql.batch.update.aerospike.basic.Record;
 import nosql.batch.update.aerospike.lock.AerospikeExpectedValuesOperations;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
 import nosql.batch.update.aerospike.lock.AerospikeLockOperations;
-import nosql.batch.update.lock.LockingException;
+import nosql.batch.update.lock.PermanentLockingException;
+import nosql.batch.update.lock.TemporaryLockingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static nosql.batch.update.util.HangingUtil.selectFlaking;
 
@@ -22,15 +24,15 @@ public class AerospikeBasicFailingLockOperations
 
     private static final Logger logger = LoggerFactory.getLogger(AerospikeBasicFailingLockOperations.class);
 
-    private final AtomicBoolean failsAcquire;
-    private final AtomicBoolean failsCheckValue;
+    private final AtomicReference<Throwable> failsAcquire;
+    private final AtomicReference<Throwable> failsCheckValue;
     private final AtomicBoolean failsRelease;
 
     public AerospikeBasicFailingLockOperations(IAerospikeClient reactorClient,
                                                ExecutorService aerospikeExecutor,
                                                AerospikeExpectedValuesOperations<List<Record>> expectedValuesOperations,
-                                               AtomicBoolean failsAcquire,
-                                               AtomicBoolean failsCheckValue,
+                                               AtomicReference<Throwable> failsAcquire,
+                                               AtomicReference<Throwable> failsCheckValue,
                                                AtomicBoolean failsRelease) {
         super(reactorClient, expectedValuesOperations, aerospikeExecutor);
         this.failsAcquire = failsAcquire;
@@ -42,24 +44,30 @@ public class AerospikeBasicFailingLockOperations
     protected List<AerospikeLock> putLocks(
             Value batchId,
             AerospikeBasicBatchLocks batchLocks,
-            boolean checkTransactionId) throws LockingException {
-        if(failsAcquire.get()){
+            boolean checkTransactionId) throws TemporaryLockingException {
+        Throwable throwable = failsAcquire.get();
+        if(throwable != null){
             List<Record> recordsSelected = selectFlaking(batchLocks.expectedValues(),
                     key -> logger.info("acquire locks failed flaking for key [{}]", key));
 
             super.putLocks(batchId,
                     new AerospikeBasicBatchLocks(recordsSelected),
                     checkTransactionId);
-            throw new RuntimeException();
+            throw throwable instanceof TemporaryLockingException
+                    ? (TemporaryLockingException) throwable
+                    : new RuntimeException(throwable);
         } else {
             return super.putLocks(batchId, batchLocks, checkTransactionId);
         }
     }
 
     @Override
-    protected void checkExpectedValues(AerospikeBasicBatchLocks batchLocks, List<AerospikeLock> keysLocked) {
-        if(failsCheckValue.get()){
-            throw new RuntimeException();
+    protected void checkExpectedValues(AerospikeBasicBatchLocks batchLocks, List<AerospikeLock> keysLocked) throws PermanentLockingException {
+        Throwable throwable = failsCheckValue.get();
+        if(throwable != null){
+            throw throwable instanceof PermanentLockingException
+                    ? (PermanentLockingException) throwable
+                    : new RuntimeException(throwable);
         } else {
             super.checkExpectedValues(batchLocks, keysLocked);
         }

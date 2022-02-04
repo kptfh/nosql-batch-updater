@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static nosql.batch.update.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
 import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basicWalManager;
@@ -30,8 +31,8 @@ public class BasicFailingOperationsUtil {
             IAerospikeClient client,
             Clock clock,
             ExecutorService executorService,
-            AtomicBoolean failsAcquire,
-            AtomicBoolean failsCheckValue,
+            AtomicReference<Throwable> failsAcquire,
+            AtomicReference<Throwable> failsCheckValue,
             AtomicBoolean failsUpdate,
             AtomicBoolean failsRelease,
             AtomicBoolean failsDeleteWal,
