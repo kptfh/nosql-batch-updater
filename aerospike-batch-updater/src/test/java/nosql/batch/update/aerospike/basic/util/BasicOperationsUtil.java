@@ -17,12 +17,16 @@ import static nosql.batch.update.aerospike.basic.AerospikeBasicBatchUpdater.basi
 public class BasicOperationsUtil {
 
     public static BatchOperations<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> getBasicOperations(
-            AerospikeClient client, Clock clock, ExecutorService aerospikeExecutorService) {
+            AerospikeClient client,
+            Clock clock,
+            ExecutorService aerospikeExecutorService,
+            ExecutorService batchExecutorService) {
         return basicOperations(
                 client,
                 AEROSPIKE_PROPERTIES.getNamespace(), "wal",
                 clock,
-                aerospikeExecutorService);
+                aerospikeExecutorService,
+                batchExecutorService);
     }
 
 }
