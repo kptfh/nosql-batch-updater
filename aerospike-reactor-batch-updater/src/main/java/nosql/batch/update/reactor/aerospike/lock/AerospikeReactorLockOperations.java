@@ -69,7 +69,7 @@ public class AerospikeReactorLockOperations<LOCKS extends AerospikeBatchLocks<EV
     protected Mono<List<AerospikeLock>> putLocks(
             Value batchId,
             LOCKS batchLocks,
-            boolean checkTransactionId) throws LockingException {
+            boolean checkTransactionId) {
 
         return Flux.fromIterable(batchLocks.keysToLock())
                 .flatMap(lockKey -> putLock(batchId, lockKey, checkTransactionId)
@@ -90,7 +90,7 @@ public class AerospikeReactorLockOperations<LOCKS extends AerospikeBatchLocks<EV
                     }
                 } else {
                     //give priority to non LockingException
-                    resultError = new PermanentLockingException(lockResult.throwable);
+                    resultError = new RuntimeException(lockResult.throwable);
                     break;
                 }
             }
@@ -112,19 +112,19 @@ public class AerospikeReactorLockOperations<LOCKS extends AerospikeBatchLocks<EV
                     if (ae.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
                         if (checkBatchId) {
                             return alreadyLockedByBatch(lockKey, batchId)
-                                    .flatMap(lockedByThisBatch -> {
-                                        if(lockedByThisBatch){
+                                    .flatMap(actualBatchId -> {
+                                        if(batchId.equals(actualBatchId)){
                                             //check for same batch
                                             //this is used only by WriteAheadLogCompleter to skip already locked keys
                                             logger.info("Previously locked by this batch update key=[{}], batchId=[{}]",
                                                     lockKey, batchId);
                                             return Mono.just(new AerospikeLock(SAME_BATCH, lockKey));
                                         } else {
-                                            logger.error("Locked by this batch update but not expected key=[{}], batchId=[{}]",
-                                                    lockKey, batchId);
+                                            logger.error("Locked by other batch update but not expected key=[{}], batchId=[{}], actualBatchId=[{}]",
+                                                    lockKey, batchId, actualBatchId);
                                             return Mono.error(new TemporaryLockingException(String.format(
-                                                    "Locked by this batch update but not expected key=[%s], batchId=[%s]",
-                                                    lockKey, batchId)));
+                                                    "Locked by this batch update but not expected key=[%s], batchId=[%s], actualBatchId=[%s]",
+                                                    lockKey, batchId, actualBatchId)));
                                         }
                                     });
                         } else {
@@ -160,8 +160,8 @@ public class AerospikeReactorLockOperations<LOCKS extends AerospikeBatchLocks<EV
                 Value.getAsNull();
     }
 
-    private Mono<Boolean> alreadyLockedByBatch(Key lockKey, Value batchId) {
-        return getBatchIdOfLock(lockKey).map(batchId::equals);
+    private Mono<Value> alreadyLockedByBatch(Key lockKey, Value batchId) {
+        return getBatchIdOfLock(lockKey);
     }
 
     @Override

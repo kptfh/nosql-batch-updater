@@ -73,20 +73,12 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
     protected List<AerospikeLock> putLocks(
             Value batchId,
             LOCKS batchLocks,
-            boolean checkTransactionId) throws LockingException {
+            boolean checkTransactionId) throws TemporaryLockingException{
 
         List<Key> keys = batchLocks.keysToLock();
 
         if(keys.size() == 1){
-            try {
-                return singletonList(putLock(batchId, keys.get(0), checkTransactionId));
-            } catch (Exception e) {
-                if(e instanceof LockingException){
-                    throw e;
-                } else {
-                    throw new PermanentLockingException(e);
-                }
-            }
+            return singletonList(putLock(batchId, keys.get(0), checkTransactionId));
         }
 
         List<CompletableFuture<LockResult<AerospikeLock>>> futures = new ArrayList<>(keys.size());
@@ -111,21 +103,21 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         return processResults(futures);
     }
 
-    static List<AerospikeLock> processResults(
-            List<CompletableFuture<LockResult<AerospikeLock>>> lockResults) {
+    static List<AerospikeLock> processResults (
+            List<CompletableFuture<LockResult<AerospikeLock>>> lockResults) throws LockingException {
         List<AerospikeLock> locks = new ArrayList<>(lockResults.size());
-        LockingException resultError = null;
+        Throwable resultError = null;
         for(CompletableFuture<LockResult<AerospikeLock>> future : lockResults){
             LockResult<AerospikeLock> lockResult = future.join();
             if(lockResult != null) {
                 if (lockResult.throwable != null) {
                     if (lockResult.throwable instanceof LockingException) {
                         if (resultError == null) {
-                            resultError = (LockingException) lockResult.throwable;
+                            resultError = lockResult.throwable;
                         }
                     } else {
                         //give priority to non LockingException
-                        resultError = new PermanentLockingException(lockResult.throwable);
+                        resultError = lockResult.throwable;
                         break;
                     }
                 }
@@ -133,12 +125,15 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
             }
         }
         if(resultError != null){
-            throw resultError;
+            logger.error("Error while putting locks", resultError);
+            throw resultError instanceof LockingException
+                    ? (LockingException)resultError
+                    : new RuntimeException(resultError);
         }
         return locks;
     }
 
-    private AerospikeLock putLock(Value batchId, Key lockKey, boolean checkBatchId) {
+    private AerospikeLock putLock(Value batchId, Key lockKey, boolean checkBatchId) throws TemporaryLockingException{
         try {
             aerospikeClient.add(putLockPolicy, lockKey, new Bin(BATCH_ID_BIN_NAME, batchId));
             logger.trace("acquired lock key=[{}], batchId=[{}]", lockKey, batchId);
@@ -146,18 +141,19 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         } catch (AerospikeException ae) {
             if (ae.getResultCode() == ResultCode.KEY_EXISTS_ERROR) {
                 if (checkBatchId) {
-                    if(alreadyLockedByBatch(lockKey, batchId)){
+                    Value actualBatchId = getBatchIdOfLock(lockKey);
+                    if(batchId.equals(actualBatchId)){
                         //check for same batch
                         //this is used only by WriteAheadLogCompleter to skip already locked keys
                         logger.info("Previously locked by this batch update key=[{}], batchId=[{}]",
                                 lockKey, batchId);
                         return new AerospikeLock(SAME_BATCH, lockKey);
                     } else {
-                        logger.error("Locked by this batch update but not expected key=[{}], batchId=[{}]",
-                                lockKey, batchId);
+                        logger.error("Locked by other batch update key=[{}], batchId=[{}], actualBatchId=[{}]",
+                                lockKey, batchId, actualBatchId);
                         throw new TemporaryLockingException(String.format(
-                                "Locked by this batch update but not expected key=[%s], batchId=[%s]",
-                                lockKey, batchId));
+                                "Locked by other batch update key=[%s], batchId=[%s], actualBatchId=[%s]",
+                                lockKey, batchId, actualBatchId));
                     }
                 } else {
                     Value batchIdLocked = getBatchIdOfLock(lockKey);
@@ -174,7 +170,7 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
         }
     }
 
-    protected void checkExpectedValues(LOCKS batchLocks, List<AerospikeLock> keysLocked) {
+    protected void checkExpectedValues(LOCKS batchLocks, List<AerospikeLock> keysLocked) throws PermanentLockingException {
         expectedValuesOperations.checkExpectedValues(keysLocked, batchLocks.expectedValues());
     }
 
@@ -188,10 +184,6 @@ public class AerospikeLockOperations<LOCKS extends AerospikeBatchLocks<EV>, EV> 
                 ? Value.get(record.getValue(BATCH_ID_BIN_NAME)) :
                 //may have place if key get unlocked before we get response
                 Value.getAsNull();
-    }
-
-    private Boolean alreadyLockedByBatch(Key lockKey, Value batchId) {
-        return batchId.equals(getBatchIdOfLock(lockKey));
     }
 
     @Override

@@ -1,5 +1,7 @@
 package nosql.batch.update;
 
+import nosql.batch.update.lock.PermanentLockingException;
+import nosql.batch.update.lock.TemporaryLockingException;
 import nosql.batch.update.wal.CompletionStatistic;
 import org.awaitility.Awaitility;
 import org.awaitility.Duration;
@@ -7,6 +9,7 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static nosql.batch.update.RecoveryTest.completionStatisticAssertion;
@@ -25,8 +28,8 @@ abstract public class BatchRetentionTest {
     protected abstract CompletionStatistic runCompleter();
     protected abstract void checkForConsistency();
 
-    protected static final AtomicBoolean failsAcquireLock = new AtomicBoolean();
-    protected static final AtomicBoolean failsCheckValue = new AtomicBoolean();
+    protected static final AtomicReference<Throwable> failsAcquireLock = new AtomicReference<>();
+    protected static final AtomicReference<Throwable> failsCheckValue = new AtomicReference<>();
     protected static final AtomicBoolean failsMutate = new AtomicBoolean();
     protected static final AtomicBoolean failsReleaseLock = new AtomicBoolean();
     protected static final AtomicBoolean failsDeleteBatch = new AtomicBoolean();
@@ -34,13 +37,25 @@ abstract public class BatchRetentionTest {
 
     @Test
     public void shouldKeepConsistencyIfAcquireFailed() throws InterruptedException {
-        shouldBecameConsistentAfterFailAndCompletion(() -> failsAcquireLock.set(true), RuntimeException.class,
+        shouldBecameConsistentAfterFailAndCompletion(() -> failsAcquireLock.set(new RuntimeException()), RuntimeException.class,
+                completionStatisticAssertion(1, 1, 0));
+    }
+
+    @Test
+    public void shouldKeepConsistencyIfAcquireFailedWithLockingException() throws InterruptedException {
+        shouldBecameConsistentAfterFailAndCompletion(() -> failsAcquireLock.set(new TemporaryLockingException("test")), RuntimeException.class,
                 completionStatisticAssertion(0, 0, 0));
     }
 
     @Test
     public void shouldKeepConsistencyIfCheckValueFailed() throws InterruptedException {
-        shouldBecameConsistentAfterFailAndCompletion(() -> failsCheckValue.set(true), RuntimeException.class,
+        shouldBecameConsistentAfterFailAndCompletion(() -> failsCheckValue.set(new RuntimeException()), RuntimeException.class,
+                completionStatisticAssertion(1, 1, 0));
+    }
+
+    @Test
+    public void shouldKeepConsistencyIfCheckValueFailedWithLockingExcption() throws InterruptedException {
+        shouldBecameConsistentAfterFailAndCompletion(() -> failsCheckValue.set(new PermanentLockingException("test")), RuntimeException.class,
                 completionStatisticAssertion(0, 0, 0));
     }
 
@@ -91,8 +106,8 @@ abstract public class BatchRetentionTest {
     }
 
     private void fixAll(){
-        failsAcquireLock.set(false);
-        failsCheckValue.set(false);
+        failsAcquireLock.set(null);
+        failsCheckValue.set(null);
         failsMutate.set(false);
         failsReleaseLock.set(false);
         failsDeleteBatch.set(false);

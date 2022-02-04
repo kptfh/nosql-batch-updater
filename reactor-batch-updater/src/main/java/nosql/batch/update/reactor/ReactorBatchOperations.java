@@ -2,6 +2,7 @@ package nosql.batch.update.reactor;
 
 import nosql.batch.update.BatchUpdate;
 import nosql.batch.update.lock.Lock;
+import nosql.batch.update.lock.LockingException;
 import nosql.batch.update.reactor.lock.ReactorLockOperations;
 import nosql.batch.update.reactor.wal.ReactorWriteAheadLogManager;
 import org.slf4j.Logger;
@@ -30,7 +31,7 @@ public class ReactorBatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
         return lockOperations.acquire(batchId, batchUpdate.locks(), calledByWal)
                 /*.onErrorResume(throwable -> onErrorCleaner.apply(batchLocks)
                             .then(Mono.error(throwable)))*/
-                .doOnError(throwable -> {
+                .doOnError(LockingException.class, throwable -> {
                     if(logger.isTraceEnabled()){
                         logger.trace("Failed to acquire locks [{}] batchId=[{}]. Will release locks", batchId, batchUpdate.locks());
                     }
