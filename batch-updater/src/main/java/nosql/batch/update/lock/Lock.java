@@ -8,12 +8,12 @@ abstract public class Lock {
         this.lockType = lockType;
     }
 
-    enum LockType {
-        /*Locked in scope of the transaction*/
+    public enum LockType {
+        /*Locked in scope of the batch update*/
         LOCKED,
 
-        /**Signals that was already locked in scope of interrupted transaction.
-        Used only by WriteAheadLogCompleter*/
-        SAME_TRANSACTION
+        /**Signals that was already locked in scope of interrupted batch update.
+           Used only by WriteAheadLogCompleter*/
+        SAME_BATCH
     }
 }

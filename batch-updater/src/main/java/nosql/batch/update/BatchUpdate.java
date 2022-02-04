@@ -1,11 +1,11 @@
 package nosql.batch.update;
 
-public interface BatchUpdate <L, U>{
+public interface BatchUpdate <LOCKS, UPDATES>{
 
     /**
      * @return Locks that should be acquired before applying batch of updated.
-     *         After locks acquired we should check for expected values
+     *         After locks acquired we should check for expected values if post lock approach used
      */
-    L locks();
-    U updates();
+    LOCKS locks();
+    UPDATES updates();
 }

@@ -2,46 +2,77 @@ package nosql.batch.update;
 
 import nosql.batch.update.lock.Lock;
 import nosql.batch.update.lock.LockOperations;
-import nosql.batch.update.wal.TransactionId;
+import nosql.batch.update.lock.LockingException;
 import nosql.batch.update.wal.WriteAheadLogManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
-public class BatchOperations<L, U> {
+public class BatchOperations<LOCKS, UPDATES, L extends Lock, BATCH_ID> {
 
-    private final WriteAheadLogManager<L, U> writeAheadLogManager;
-    private final LockOperations<L> lockOperations;
-    private final UpdateOperations<U> updateOperations;
+    private static final Logger logger = LoggerFactory.getLogger(BatchOperations.class);
 
-    public BatchOperations(WriteAheadLogManager<L, U> writeAheadLogManager,
-                           LockOperations<L> lockOperations,
-                           UpdateOperations<U> updateOperations) {
+    private final WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> writeAheadLogManager;
+    private final LockOperations<LOCKS, L, BATCH_ID> lockOperations;
+    private final UpdateOperations<UPDATES> updateOperations;
+    private final ExecutorService executorService;
+
+    public BatchOperations(WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> writeAheadLogManager,
+                           LockOperations<LOCKS, L, BATCH_ID> lockOperations,
+                           UpdateOperations<UPDATES> updateOperations,
+                           ExecutorService executorService) {
         this.writeAheadLogManager = writeAheadLogManager;
         this.lockOperations = lockOperations;
         this.updateOperations = updateOperations;
+        this.executorService = executorService;
     }
 
-    public void processAndDeleteTransaction(TransactionId transactionId, BatchUpdate<L, U> batchUpdate, boolean checkTransactionId) {
-        Set<Lock> locked = lockOperations.acquire(transactionId, batchUpdate.locks(), checkTransactionId,
-                locksToRelease -> releaseLocksAndDeleteWalTransaction(locksToRelease, transactionId));
+    public void processAndDeleteTransaction(BATCH_ID batchId, BatchUpdate<LOCKS, UPDATES> batchUpdate, boolean calledByWal) {
+        List<L> locksAcquired;
+        try {
+            locksAcquired = lockOperations.acquire(batchId, batchUpdate.locks(), calledByWal);
+        } catch (LockingException lockingException) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Failed to acquire locks [{}] batchId=[{}]. Will release locks", batchId, batchUpdate.locks());
+            }
+            releaseLocksAndDeleteWalTransactionOnError(batchUpdate.locks(), batchId);
+            throw lockingException;
+        }
 
-        updateOperations.updateMany(batchUpdate.updates());
-        releaseLocksAndDeleteWalTransaction(locked, transactionId);
+        updateOperations.updateMany(batchUpdate.updates(), calledByWal);
+
+        if(logger.isTraceEnabled()){
+            logger.trace("Applied updates [{}] batchId=[{}]", batchId, batchUpdate);
+        }
+
+        releaseLocksAndDeleteWalTransaction(locksAcquired, batchId);
     }
 
-    private void releaseLocksAndDeleteWalTransaction(Collection<Lock> locks, TransactionId transactionId) {
-        lockOperations.release(locks);
-        writeAheadLogManager.deleteTransaction(transactionId);
+    private void releaseLocksAndDeleteWalTransaction(List<L> locks, BATCH_ID batchId) {
+        lockOperations.release(locks, batchId);
+        //here we use fire&forget to reduce response time
+        executorService.submit(() -> {
+            try {
+                boolean deleted = writeAheadLogManager.deleteBatch(batchId);
+                if(deleted) {
+                    logger.trace("Removed batch from WAL: {}", batchId);
+                } else {
+                    logger.error("Missed batch in WAL: {}", batchId);
+                }
+            } catch (Throwable t) {
+                logger.error("Error while removing batch from WAL", t);
+            }
+        });
     }
 
-    public void releaseLocksAndDeleteWalTransactionOnError(L locks, TransactionId transactionId) {
-        List<Lock> transactionLockKeys = lockOperations.getLockedByTransaction(locks, transactionId);
-        releaseLocksAndDeleteWalTransaction(transactionLockKeys, transactionId);
+    public void releaseLocksAndDeleteWalTransactionOnError(LOCKS locks, BATCH_ID batchId) {
+        List<L> transactionLockKeys = lockOperations.getLockedByBatchUpdate(locks, batchId);
+        releaseLocksAndDeleteWalTransaction(transactionLockKeys, batchId);
     }
 
-    public WriteAheadLogManager<L, U> getWriteAheadLogManager() {
+    public WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> getWriteAheadLogManager() {
         return writeAheadLogManager;
     }
 
