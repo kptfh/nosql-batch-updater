@@ -20,6 +20,7 @@ abstract public class AbstractWriteAheadLogCompleter<LOCKS, UPDATES, BATCH_ID> {
     private static final Logger logger = LoggerFactory.getLogger(AbstractWriteAheadLogCompleter.class);
 
     private final Duration staleBatchesThreshold;
+    private final int batchSize;
 
     private final ExclusiveLocker exclusiveLocker;
     private final ScheduledExecutorService scheduledExecutorService;
@@ -29,12 +30,16 @@ abstract public class AbstractWriteAheadLogCompleter<LOCKS, UPDATES, BATCH_ID> {
 
     /**
      * @param staleBatchesThreshold
+     * @param batchSize
      * @param exclusiveLocker
      * @param scheduledExecutorService
      */
     public AbstractWriteAheadLogCompleter(Duration staleBatchesThreshold,
-                                          ExclusiveLocker exclusiveLocker, ScheduledExecutorService scheduledExecutorService){
+                                          int batchSize,
+                                          ExclusiveLocker exclusiveLocker,
+                                          ScheduledExecutorService scheduledExecutorService){
         this.staleBatchesThreshold = staleBatchesThreshold;
+        this.batchSize = batchSize;
         this.exclusiveLocker = exclusiveLocker;
         this.scheduledExecutorService = scheduledExecutorService;
     }
@@ -86,41 +91,46 @@ abstract public class AbstractWriteAheadLogCompleter<LOCKS, UPDATES, BATCH_ID> {
         int ignoredBatchesCount = 0;
         int errorBatchesCount = 0;
         try {
-            if(exclusiveLocker.acquire()){
-                List<WalRecord<LOCKS, UPDATES, BATCH_ID>> staleBatches = getStaleBatches(staleBatchesThreshold);
-                staleBatchesCount += staleBatches.size();
-                logger.info("Got {} stale transactions", staleBatches.size());
-                for(WalRecord<LOCKS, UPDATES, BATCH_ID> batch : staleBatches){
-                    if(suspended.get()){
-                        logger.info("WAL completion was suspended");
-                        break;
-                    }
-                    if(Thread.currentThread().isInterrupted()){
-                        logger.info("WAL completion was interrupted");
-                        break;
-                    }
+            if(exclusiveLocker.acquire()) {
+                List<WalTimeRange> timeRanges = getTimeRanges(staleBatchesThreshold, batchSize);
+                logger.info("Got {} chunks of stale transactions. Max chunk size {}", timeRanges.size(), batchSize);
 
-                    if(exclusiveLocker.acquire()) {
-                        logger.info("Trying to complete batch batchId=[{}], timestamp=[{}]",
-                                batch.batchId, batch.timestamp);
-                        try {
-                            processAndDeleteTransactions(batch);
-                            completeBatchesCount++;
-                            logger.info("Successfully complete batch batchId=[{}]", batch.batchId);
+                for (WalTimeRange timeRange : timeRanges) {
+                    List<WalRecord<LOCKS, UPDATES, BATCH_ID>> staleBatches = getStaleBatchesForRange(timeRange);
+                    staleBatchesCount += staleBatches.size();
+                    logger.info("Processing {} stale transactions", staleBatches.size());
+                    for(WalRecord<LOCKS, UPDATES, BATCH_ID> batch : staleBatches){
+                        if(suspended.get()){
+                            logger.info("WAL completion was suspended");
+                            break;
                         }
-                        //this is expected behaviour that may have place in case of hanged transaction was not completed:
-                        //not able to acquire all locks (didn't match expected value
-                        // (may have place if initial transaction was interrupted on release stage and released values were modified))
-                        catch (LockingException be) {
-                            logger.info("Failed to complete batch batchId=[{}] as it's already completed", batch.batchId, be);
-                            releaseLocksAndDeleteWalTransactionOnError(batch);
-                            ignoredBatchesCount ++;
-                            logger.info("released locks for batch batchId=[{}]", batch.batchId, be);
+                        if(Thread.currentThread().isInterrupted()){
+                            logger.info("WAL completion was interrupted");
+                            break;
                         }
-                        //even in case of error need to move to the next one
-                        catch (Exception e) {
-                            errorBatchesCount ++;
-                            logger.error("!!! Failed to complete batch batchId=[{}], need to be investigated", batch.batchId, e);
+
+                        if(exclusiveLocker.acquire()) {
+                            logger.info("Trying to complete batch batchId=[{}], timestamp=[{}]",
+                                        batch.batchId, batch.timestamp);
+                            try {
+                                processAndDeleteTransactions(batch);
+                                completeBatchesCount++;
+                                logger.info("Successfully complete batch batchId=[{}]", batch.batchId);
+                            }
+                            //this is expected behaviour that may have place in case of hanged transaction was not completed:
+                            //not able to acquire all locks (didn't match expected value
+                            // (may have place if initial transaction was interrupted on release stage and released values were modified))
+                            catch (LockingException be) {
+                                logger.info("Failed to complete batch batchId=[{}] as it's already completed", batch.batchId, be);
+                                releaseLocksAndDeleteWalTransactionOnError(batch);
+                                ignoredBatchesCount ++;
+                                logger.info("released locks for batch batchId=[{}]", batch.batchId, be);
+                            }
+                            //even in case of error need to move to the next one
+                            catch (Exception e) {
+                                errorBatchesCount ++;
+                                logger.error("!!! Failed to complete batch batchId=[{}], need to be investigated", batch.batchId, e);
+                            }
                         }
                     }
                 }
@@ -137,6 +147,8 @@ abstract public class AbstractWriteAheadLogCompleter<LOCKS, UPDATES, BATCH_ID> {
 
     abstract protected void processAndDeleteTransactions(WalRecord<LOCKS, UPDATES, BATCH_ID> batch);
 
-    abstract protected List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatches(Duration staleBatchesThreshold);
+    abstract protected List<WalTimeRange> getTimeRanges(Duration staleBatchesThreshold, int batchSize);
+
+    abstract protected List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatchesForRange(WalTimeRange timeRange);
 
 }

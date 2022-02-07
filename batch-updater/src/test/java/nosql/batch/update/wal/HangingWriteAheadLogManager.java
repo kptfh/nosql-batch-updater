@@ -39,7 +39,12 @@ public class HangingWriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> implements Wr
     }
 
     @Override
-    public List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatches(Duration staleThreshold) {
-        return writeAheadLogManager.getStaleBatches(staleThreshold);
+    public List<WalTimeRange> getTimeRanges(Duration staleThreshold, int batchSize) {
+        return writeAheadLogManager.getTimeRanges(staleThreshold, batchSize);
+    }
+
+    @Override
+    public List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatchesForRange(WalTimeRange timeRange) {
+        return writeAheadLogManager.getStaleBatchesForRange(timeRange);
     }
 }

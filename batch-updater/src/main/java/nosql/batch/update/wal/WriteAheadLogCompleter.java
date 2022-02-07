@@ -24,8 +24,9 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID>
      */
     public WriteAheadLogCompleter(BatchOperations<LOCKS, UPDATES, L, BATCH_ID> batchOperations,
                                   Duration staleBatchesThreshold,
+                                  int batchSize,
                                   ExclusiveLocker exclusiveLocker, ScheduledExecutorService scheduledExecutorService){
-        super(staleBatchesThreshold, exclusiveLocker, scheduledExecutorService);
+        super(staleBatchesThreshold, batchSize, exclusiveLocker, scheduledExecutorService);
         this.writeAheadLogManager = batchOperations.getWriteAheadLogManager();
         this.batchOperations = batchOperations;
     }
@@ -43,8 +44,13 @@ public class WriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH_ID>
     }
 
     @Override
-    protected List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatches(Duration staleBatchesThreshold) {
-        return writeAheadLogManager.getStaleBatches(staleBatchesThreshold);
+    protected List<WalTimeRange> getTimeRanges(Duration staleBatchesThreshold, int batchSize) {
+        return writeAheadLogManager.getTimeRanges(staleBatchesThreshold, batchSize);
+    }
+
+    @Override
+    protected List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatchesForRange(WalTimeRange timeRange) {
+        return writeAheadLogManager.getStaleBatchesForRange(timeRange);
     }
 
 }

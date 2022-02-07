@@ -5,6 +5,7 @@ import nosql.batch.update.reactor.ReactorBatchOperations;
 import nosql.batch.update.wal.AbstractWriteAheadLogCompleter;
 import nosql.batch.update.wal.ExclusiveLocker;
 import nosql.batch.update.wal.WalRecord;
+import nosql.batch.update.wal.WalTimeRange;
 
 import java.time.Duration;
 import java.util.List;
@@ -27,8 +28,9 @@ public class ReactorWriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH
      */
     public ReactorWriteAheadLogCompleter(ReactorBatchOperations<LOCKS, UPDATES, L, BATCH_ID> batchOperations,
                                          Duration staleBatchesThreshold,
+                                         int batchSize,
                                          ExclusiveLocker exclusiveLocker, ScheduledExecutorService scheduledExecutorService){
-        super(staleBatchesThreshold, exclusiveLocker, scheduledExecutorService);
+        super(staleBatchesThreshold, batchSize, exclusiveLocker, scheduledExecutorService);
         this.writeAheadLogManager = batchOperations.getWriteAheadLogManager();
         this.batchOperations = batchOperations;
     }
@@ -46,8 +48,13 @@ public class ReactorWriteAheadLogCompleter<LOCKS, UPDATES, L extends Lock, BATCH
     }
 
     @Override
-    protected List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatches(Duration staleBatchesThreshold) {
-        return writeAheadLogManager.getStaleBatches(staleBatchesThreshold);
+    protected List<WalTimeRange> getTimeRanges(Duration staleBatchesThreshold, int batchSize) {
+        return writeAheadLogManager.getTimeRanges(staleBatchesThreshold, batchSize);
+    }
+
+    @Override
+    protected List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatchesForRange(WalTimeRange timeRange) {
+        return writeAheadLogManager.getStaleBatchesForRange(timeRange);
     }
 
 }

@@ -12,6 +12,8 @@ public interface WriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> {
 
     boolean deleteBatch(BATCH_ID batchId);
 
-    List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatches(Duration staleThreshold);
+    List<WalTimeRange> getTimeRanges(Duration staleThreshold, int batchSize);
+
+    List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatchesForRange(WalTimeRange timeRange);
 
 }

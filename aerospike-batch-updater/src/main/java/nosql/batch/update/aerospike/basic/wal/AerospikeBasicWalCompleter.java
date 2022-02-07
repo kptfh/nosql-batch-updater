@@ -17,7 +17,7 @@ public class AerospikeBasicWalCompleter {
 
     public static <LOCKS> WriteAheadLogCompleter<LOCKS, List<Record>, AerospikeLock, Value> basicCompleter(
             BatchOperations<LOCKS, List<Record>, AerospikeLock, Value> batchOperations,
-            Duration staleBatchesThreshold){
+            Duration staleBatchesThreshold, int batchSize){
         WriteAheadLogManager<LOCKS, List<Record>, Value> writeAheadLogManager
                 = batchOperations.getWriteAheadLogManager();
         AerospikeWriteAheadLogManager aerospikeWriteAheadLogManager = (AerospikeWriteAheadLogManager)writeAheadLogManager;
@@ -25,6 +25,7 @@ public class AerospikeBasicWalCompleter {
         return new WriteAheadLogCompleter<>(
                 batchOperations,
                 staleBatchesThreshold,
+                batchSize,
                 new AerospikeExclusiveLocker(
                         aerospikeWriteAheadLogManager.getClient(),
                         aerospikeWriteAheadLogManager.getWalNamespace(),

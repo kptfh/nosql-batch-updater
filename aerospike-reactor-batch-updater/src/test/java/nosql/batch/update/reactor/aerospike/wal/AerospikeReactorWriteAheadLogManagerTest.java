@@ -14,6 +14,7 @@ import nosql.batch.update.wal.WriteAheadLogManagerTest;
 import org.testcontainers.containers.GenericContainer;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,6 +37,7 @@ public class AerospikeReactorWriteAheadLogManagerTest extends WriteAheadLogManag
         clock.setTime(1000);
     }
     static final Duration staleThreshold = Duration.ofMillis(100);
+    static final int batchSize = 100;
 
     static String walSetName = String.valueOf(AerospikeReactorWriteAheadLogManagerTest.class.hashCode());
 
@@ -84,7 +86,9 @@ public class AerospikeReactorWriteAheadLogManagerTest extends WriteAheadLogManag
 
     @Override
     protected List<Value> getStaleBatches() {
-        return writeAheadLogManager.getStaleBatches(staleThreshold).stream()
+        return writeAheadLogManager.getTimeRanges(staleThreshold, batchSize).stream()
+                .map(writeAheadLogManager::getStaleBatchesForRange)
+                .flatMap(Collection::stream)
                 .map(record -> record.batchId)
                 .collect(Collectors.toList());
     }

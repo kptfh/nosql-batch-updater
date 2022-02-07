@@ -48,10 +48,11 @@ public class BasicRecoveryTest extends RecoveryTest {
             = new BatchUpdater<>(operations);
 
     public static final Duration STALE_BATCHES_THRESHOLD = Duration.ofSeconds(1);
+    public static final int BATCH_SIZE = 100;
 
     static WriteAheadLogCompleter<AerospikeBasicBatchLocks, List<Record>, AerospikeLock, Value> walCompleter
             = new WriteAheadLogCompleter<>(
-            operations, STALE_BATCHES_THRESHOLD,
+            operations, STALE_BATCHES_THRESHOLD, BATCH_SIZE,
             new DummyExclusiveLocker(),
             Executors.newScheduledThreadPool(1));
 
@@ -78,7 +79,7 @@ public class BasicRecoveryTest extends RecoveryTest {
         assertThat(getValue(key1, client)).isEqualTo(getValue(key2, client));
 
         await().timeout(ONE_SECOND).untilAsserted(() ->
-                assertThat(operations.getWriteAheadLogManager().getStaleBatches(STALE_BATCHES_THRESHOLD)).isEmpty());
+                assertThat(operations.getWriteAheadLogManager().getTimeRanges(STALE_BATCHES_THRESHOLD, BATCH_SIZE)).isEmpty());
     }
 
     @Override
