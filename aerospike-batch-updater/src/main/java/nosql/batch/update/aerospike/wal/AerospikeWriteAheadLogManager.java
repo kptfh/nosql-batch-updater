@@ -16,6 +16,7 @@ import com.aerospike.client.query.Statement;
 import nosql.batch.update.BatchUpdate;
 import nosql.batch.update.aerospike.lock.AerospikeBatchLocks;
 import nosql.batch.update.wal.WalRecord;
+import nosql.batch.update.wal.WalTimeRange;
 import nosql.batch.update.wal.WriteAheadLogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
 
 public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>, UPDATES, EV>
         implements WriteAheadLogManager<LOCKS, UPDATES, Value> {
@@ -101,8 +101,20 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
     }
 
     @Override
-    public List<WalRecord<LOCKS, UPDATES, Value>> getStaleBatches(Duration staleThreshold) {
+    public List<WalTimeRange> getTimeRanges(Duration staleThreshold, int batchSize) {
         Statement statement = staleBatchesStatement(staleThreshold, walNamespace, walSetName, clock);
+        RecordSet recordSet = client.query(null, statement);
+
+        List<Long> timestamps = new ArrayList<>();
+        recordSet.iterator().forEachRemaining(keyRecord -> timestamps.add(keyRecord.record.getLong(TIMESTAMP_BIN_NAME)));
+        Collections.sort(timestamps);
+
+        return getTimeRangesForTimestamps(timestamps, batchSize);
+    }
+
+    @Override
+    public List<WalRecord<LOCKS, UPDATES, Value>> getStaleBatchesForRange(WalTimeRange timeRange) {
+        Statement statement = staleBatchesStatement(walNamespace, walSetName, timeRange.getFromTimestamp(), timeRange.getToTimestamp());
         RecordSet recordSet = client.query(null, statement);
 
         List<WalRecord<LOCKS, UPDATES, Value>> staleTransactions = new ArrayList<>();
@@ -125,6 +137,37 @@ public class AerospikeWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>
         statement.setFilter(Filter.range(TIMESTAMP_BIN_NAME,
                 0,  Math.max(clock.millis() - staleThreshold.toMillis(), 0)));
         return statement;
+    }
+
+    public static Statement staleBatchesStatement(String walNamespace, String walSetName, long begin, long end) {
+        Statement statement = new Statement();
+        statement.setNamespace(walNamespace);
+        statement.setSetName(walSetName);
+        statement.setFilter(Filter.range(TIMESTAMP_BIN_NAME, begin, end));
+        return statement;
+    }
+
+    public static  List<WalTimeRange> getTimeRangesForTimestamps(List<Long> timestamps, int batchSize) {
+        List<WalTimeRange> walTimeRanges = new ArrayList<>();
+
+        int fromIdx = 0;
+        int size = timestamps.size();
+        int toIdx = Math.min(batchSize, size) - 1;
+
+        while (fromIdx < size) {
+            long fromTimestamp = timestamps.get(fromIdx);
+            long toTimestamp = timestamps.get(toIdx);
+            walTimeRanges.add(new WalTimeRange(fromTimestamp, toTimestamp));
+
+            fromIdx = toIdx;
+            while (fromIdx < size && timestamps.get(fromIdx) == toTimestamp) {
+                fromIdx++;
+            }
+
+            toIdx = Math.min(fromIdx + batchSize, size) - 1;
+        }
+
+        return walTimeRanges;
     }
 
     static byte[] getBytesFromUUID(UUID uuid) {

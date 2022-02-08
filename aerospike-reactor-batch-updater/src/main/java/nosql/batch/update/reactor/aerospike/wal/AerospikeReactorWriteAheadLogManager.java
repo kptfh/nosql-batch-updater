@@ -9,7 +9,6 @@ import com.aerospike.client.ResultCode;
 import com.aerospike.client.Value;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
-import com.aerospike.client.query.Filter;
 import com.aerospike.client.query.IndexType;
 import com.aerospike.client.query.RecordSet;
 import com.aerospike.client.query.Statement;
@@ -19,6 +18,7 @@ import nosql.batch.update.aerospike.lock.AerospikeBatchLocks;
 import nosql.batch.update.aerospike.wal.AerospikeBatchUpdateSerde;
 import nosql.batch.update.reactor.wal.ReactorWriteAheadLogManager;
 import nosql.batch.update.wal.WalRecord;
+import nosql.batch.update.wal.WalTimeRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager.generateBatchId;
+import static nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager.getTimeRangesForTimestamps;
 import static nosql.batch.update.aerospike.wal.AerospikeWriteAheadLogManager.staleBatchesStatement;
 
 public class AerospikeReactorWriteAheadLogManager<LOCKS extends AerospikeBatchLocks<EV>, UPDATES, EV>
@@ -107,8 +108,20 @@ public class AerospikeReactorWriteAheadLogManager<LOCKS extends AerospikeBatchLo
     }
 
     @Override
-    public List<WalRecord<LOCKS, UPDATES, Value>> getStaleBatches(Duration staleThreshold) {
+    public List<WalTimeRange> getTimeRanges(Duration staleThreshold, int batchSize) {
         Statement statement = staleBatchesStatement(staleThreshold, walNamespace, walSetName, clock);
+        RecordSet recordSet = client.query(null, statement);
+
+        List<Long> timestamps = new ArrayList<>();
+        recordSet.iterator().forEachRemaining(keyRecord -> timestamps.add(keyRecord.record.getLong(TIMESTAMP_BIN_NAME)));
+        Collections.sort(timestamps);
+
+        return getTimeRangesForTimestamps(timestamps, batchSize);
+    }
+
+    @Override
+    public List<WalRecord<LOCKS, UPDATES, Value>> getStaleBatchesForRange(WalTimeRange timeRange) {
+        Statement statement = staleBatchesStatement(walNamespace, walSetName, timeRange.getFromTimestamp(), timeRange.getToTimestamp());
         RecordSet recordSet = client.query(null, statement);
 
         List<WalRecord<LOCKS, UPDATES, Value>> staleTransactions = new ArrayList<>();

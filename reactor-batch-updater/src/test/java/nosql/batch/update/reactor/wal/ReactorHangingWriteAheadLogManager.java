@@ -2,6 +2,7 @@ package nosql.batch.update.reactor.wal;
 
 import nosql.batch.update.BatchUpdate;
 import nosql.batch.update.wal.WalRecord;
+import nosql.batch.update.wal.WalTimeRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -40,7 +41,13 @@ public class ReactorHangingWriteAheadLogManager<LOCKS, UPDATES, BATCH_ID> implem
     }
 
     @Override
-    public List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatches(Duration staleThreshold) {
-        return writeAheadLogManager.getStaleBatches(staleThreshold);
+    public List<WalTimeRange> getTimeRanges(Duration staleThreshold, int batchSize) {
+        return writeAheadLogManager.getTimeRanges(staleThreshold, batchSize);
     }
+
+    @Override
+    public List<WalRecord<LOCKS, UPDATES, BATCH_ID>> getStaleBatchesForRange(WalTimeRange timeRange) {
+        return writeAheadLogManager.getStaleBatchesForRange(timeRange);
+    }
+
 }
