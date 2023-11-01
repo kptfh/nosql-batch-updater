@@ -26,7 +26,7 @@ package com.aerospike;
 public class AerospikeProperties {
 
     boolean enabled = true;
-    String dockerImage = "aerospike/aerospike-server:4.3.0.8";
+    String dockerImage = "aerospike:ce-6.2.0.2";
     String namespace = "TEST";
     String host = "localhost";
     int port = 3000;
