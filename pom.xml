@@ -48,21 +48,21 @@
     </developers>
 
     <properties>
-        <java.version>1.8</java.version>
+        <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <aerospike-client.version>4.4.15</aerospike-client.version>
-        <aerospike-reactor-client.version>4.4.10</aerospike-reactor-client.version>
+        <aerospike-client.version>6.2.0</aerospike-client.version>
+        <aerospike-reactor-client.version>6.1.2</aerospike-reactor-client.version>
         <slf4j.version>1.7.25</slf4j.version>
 
         <!-- Tests -->
-        <testcontainers.version>1.11.4</testcontainers.version>
+        <testcontainers.version>1.19.1</testcontainers.version>
         <junit.version>4.12</junit.version>
         <assertj.version>3.9.0</assertj.version>
-        <blockhound.version>1.0.3.RELEASE</blockhound.version>
+        <blockhound.version>1.0.8.RELEASE</blockhound.version>
 
         <slf4j-log4j12.version>1.8.0-beta0</slf4j-log4j12.version>
         <hamcrest.version>1.3</hamcrest.version>
@@ -82,6 +82,7 @@
 
         <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
+        <gitflow-incremental-builder.version>4.5.1</gitflow-incremental-builder.version>
 
         <!-- GPG -->
         <gpg.keyname>3EEF24C7</gpg.keyname>
@@ -251,6 +252,9 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${maven-surefire-plugin.version}</version>
+                    <configuration>
+                        <argLine>-XX:+AllowRedefinitionToAddDeleteMethods</argLine>
+                    </configuration>
                 </plugin>
 
                 <!-- Produce code coverage -->
@@ -287,7 +291,7 @@
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <version>${maven.javadoc.plugin.version}</version>
                     <configuration>
-                        <source>8</source>
+                        <source>17</source>
                     </configuration>
                     <executions>
                         <execution>
@@ -302,40 +306,6 @@
         </pluginManagement>
 
         <plugins>
-            <!-- Jacoco Code Coverage -->
-            <!--<plugin>-->
-                <!--<groupId>org.jacoco</groupId>-->
-                <!--<artifactId>jacoco-maven-plugin</artifactId>-->
-                <!--<executions>-->
-                    <!--<execution>-->
-                        <!--<id>prepare-agent</id>-->
-                        <!--<goals>-->
-                            <!--<goal>prepare-agent</goal>-->
-                        <!--</goals>-->
-                    <!--</execution>-->
-                    <!--<execution>-->
-                        <!--<id>report</id>-->
-                        <!--<phase>prepare-package</phase>-->
-                        <!--<goals>-->
-                            <!--<goal>report</goal>-->
-                        <!--</goals>-->
-                    <!--</execution>-->
-                    <!--<execution>-->
-                        <!--<id>post-unit-test</id>-->
-                        <!--<phase>test</phase>-->
-                        <!--<goals>-->
-                            <!--<goal>report</goal>-->
-                        <!--</goals>-->
-                        <!--<configuration>-->
-                            <!--&lt;!&ndash; Sets the path to the file which contains the execution data. &ndash;&gt;-->
-
-                            <!--<dataFile>target/jacoco.exec</dataFile>-->
-                            <!--&lt;!&ndash; Sets the output directory for the code coverage report. &ndash;&gt;-->
-                            <!--<outputDirectory>target/jacoco-ut</outputDirectory>-->
-                        <!--</configuration>-->
-                    <!--</execution>-->
-                <!--</executions>-->
-            <!--</plugin>-->
 
             <!-- Compile -->
             <plugin>
@@ -354,52 +324,25 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>io.github.gitflow-incremental-builder</groupId>
+                <artifactId>gitflow-incremental-builder</artifactId>
+                <version>${gitflow-incremental-builder.version}</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <disableIfBranchMatches>develop</disableIfBranchMatches>
+                    <fetchReferenceBranch>true</fetchReferenceBranch>
+                    <referenceBranch>refs/remotes/origin/develop</referenceBranch>
+                    <buildUpstream>always</buildUpstream>
+                    <skipTestsForUpstreamModules>true</skipTestsForUpstreamModules>
+                    <buildUpstreamMode>impacted</buildUpstreamMode>
+                    <skipIfPathMatches>\.github[/\\].*|\.mvn[/\\].*|mvnw.*</skipIfPathMatches>
+                    <!-- Ignores Readme changes in parent or any submodule-->
+                    <excludePathsMatching>(.*[/\\])?README.adoc</excludePathsMatching>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>ossrh</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonatype.plugins</groupId>
-                        <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>${nexus-staging-maven-plugin.version}</version>
-                        <extensions>true</extensions>
-                        <configuration>
-                            <serverId>ossrh</serverId>
-                            <nexusUrl>https://oss.sonatype.org/</nexusUrl>
-                            <autoReleaseAfterClose>true</autoReleaseAfterClose>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>${maven-gpg-plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
-
-    <!-- Push binary to JCenter -->
-    <distributionManagement>
-        <repository>
-            <id>bintray-kptfh-feign-reactive</id>
-            <name>kptfh-feign-reactive</name>
-            <url>https://api.bintray.com/maven/kptfh/json-reactive/json/;publish=1</url>
-        </repository>
-    </distributionManagement>
 
 
 </project>

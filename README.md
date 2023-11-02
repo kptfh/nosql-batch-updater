@@ -1,4 +1,3 @@
-[![CircleCI](https://circleci.com/gh/Playtika/nosql-batch-updater/tree/develop.svg?style=shield&circle-token=2fee7a6c26cbd37d4530dc0ef8d4f70027d070ae)](https://circleci.com/gh/Playtika/nosql-batch-updater/tree/develop)
 [![codecov](https://codecov.io/gh/Playtika/nosql-batch-updater/branch/master/graph/badge.svg)](https://codecov.io/gh/Playtika/nosql-batch-updater)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.playtika.nosql/batch-updater-parent/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.playtika.nosql/batch-updater-parent)
 # nosql-batch-updater

@@ -21,7 +21,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static nosql.batch.update.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
-import static nosql.batch.update.aerospike.AerospikeTestUtils.deleteAllRecords;
 import static nosql.batch.update.aerospike.AerospikeTestUtils.getAerospikeClient;
 import static nosql.batch.update.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static nosql.batch.update.aerospike.basic.BasicConsistencyTest.getValue;
@@ -56,10 +55,9 @@ public class BasicRecoveryTest extends RecoveryTest {
             new DummyExclusiveLocker(),
             Executors.newScheduledThreadPool(1));
 
-    static String setName = String.valueOf(BasicRecoveryTest.class.hashCode());
     static AtomicInteger keyCounter = new AtomicInteger();
-    private final Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
-    private final Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key1;
+    private Key key2;
 
     @Override
     protected void runUpdate() {
@@ -82,9 +80,13 @@ public class BasicRecoveryTest extends RecoveryTest {
                 assertThat(operations.getWriteAheadLogManager().getTimeRanges(STALE_BATCHES_THRESHOLD, BATCH_SIZE)).isEmpty());
     }
 
+    private int setNameCounter = 0;
+
     @Override
-    protected void cleanUp() throws InterruptedException {
-        deleteAllRecords(aerospike);
+    protected void cleanUp() {
+        String setName = String.valueOf(setNameCounter++);
+        key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+        key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
 
         clock.setTime(0);
     }
