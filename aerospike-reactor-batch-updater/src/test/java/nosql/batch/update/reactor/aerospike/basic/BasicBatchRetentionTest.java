@@ -7,6 +7,7 @@ import com.aerospike.client.async.NioEventLoops;
 import com.aerospike.client.reactor.AerospikeReactorClient;
 import com.aerospike.client.reactor.IAerospikeReactorClient;
 import nosql.batch.update.BatchRetentionTest;
+import nosql.batch.update.aerospike.AerospikeTestUtils;
 import nosql.batch.update.aerospike.basic.Record;
 import nosql.batch.update.aerospike.basic.lock.AerospikeBasicBatchLocks;
 import nosql.batch.update.aerospike.lock.AerospikeLock;
@@ -20,10 +21,7 @@ import org.testcontainers.containers.GenericContainer;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.AEROSPIKE_PROPERTIES;
-import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.deleteAllRecords;
 import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeClient;
 import static nosql.batch.update.reactor.aerospike.AerospikeTestUtils.getAerospikeContainer;
 import static nosql.batch.update.reactor.aerospike.basic.BasicConsistencyTest.getValue;
@@ -59,12 +57,8 @@ public class BasicBatchRetentionTest extends BatchRetentionTest {
             new BasicRecoveryTest.DummyExclusiveLocker(),
             Executors.newScheduledThreadPool(1));
 
-    static AtomicInteger keyCounter = new AtomicInteger();
-
-    static String setName = String.valueOf(BasicBatchRetentionTest.class.hashCode());
-
-    private Key key1 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
-    private Key key2 = new Key(AEROSPIKE_PROPERTIES.getNamespace(), setName, keyCounter.incrementAndGet());
+    private Key key1;
+    private Key key2;
 
     @Override
     protected void runUpdate() {
@@ -81,9 +75,12 @@ public class BasicBatchRetentionTest extends BatchRetentionTest {
                 assertThat(operations.getWriteAheadLogManager().getTimeRanges(STALE_BATCHES_THRESHOLD, BATCH_SIZE)).isEmpty());
     }
 
+    private int setNameCounter = 0;
     @Override
-    protected void cleanUp() throws InterruptedException {
-        deleteAllRecords(aerospike);
+    protected void cleanUp() {
+        String setName = String.valueOf(setNameCounter++);
+        key1 = new Key(AerospikeTestUtils.AEROSPIKE_PROPERTIES.getNamespace(), setName, 0);
+        key2 = new Key(AerospikeTestUtils.AEROSPIKE_PROPERTIES.getNamespace(), setName, 1);
 
         clock.setTime(0);
     }
